@@ -1,171 +1,234 @@
+# detect_quads_side_by_side.py
 import cv2
 import numpy as np
 import math
 import sys
+import tkinter as tk
+from tkinter import filedialog
+from pathlib import Path
 
+# ---------------------- Geometry helpers ----------------------
 def angle_deg(p0, p1, p2):
+    """Angle at p1 (degrees) formed by p0-p1-p2."""
     v1 = p0 - p1
     v2 = p2 - p1
     denom = (np.linalg.norm(v1) * np.linalg.norm(v2) + 1e-9)
-    cosang = np.dot(v1, v2) / denom
-    cosang = np.clip(cosang, -1.0, 1.0)
-    return np.degrees(np.arccos(cosang))
+    cosang = float(np.dot(v1, v2) / denom)
+    cosang = max(-1.0, min(1.0, cosang))
+    return math.degrees(math.acos(cosang))
 
-def is_square(poly, angle_tol=12, aspect_tol=0.15, min_area=400):
-    if len(poly) != 4:
-        return False
-    pts = poly.reshape(-1, 2).astype(np.float32)
-    if not cv2.isContourConvex(poly):
-        return False
-    area = cv2.contourArea(poly)
-    if area < min_area:
-        return False
-
+def is_right_angle_quad(pts, angle_tol=12):
+    """All 4 interior angles ~ 90° within tolerance."""
     angles = []
     for i in range(4):
         p0, p1, p2 = pts[(i - 1) % 4], pts[i], pts[(i + 1) % 4]
-        ang = angle_deg(p0, p1, p2)
-        angles.append(ang)
-    if not all(90 - angle_tol <= a <= 90 + angle_tol for a in angles):
-        return False
+        angles.append(angle_deg(p0, p1, p2))
+    return all(90 - angle_tol <= a <= 90 + angle_tol for a in angles)
 
-    rect = cv2.minAreaRect(pts)
-    (w, h) = rect[1]
+def classify_square_vs_rectangle(pts, square_aspect_tol=0.15):
+    """
+    Use minAreaRect for rotation-invariant sides.
+    Return "square" if sides ~ equal; else "rectangle".
+    """
+    rect = cv2.minAreaRect(pts.astype(np.float32))
+    w, h = rect[1]
     if w == 0 or h == 0:
-        return False
-    ratio = min(w, h) / max(w, h)
-    if ratio < (1 - aspect_tol):
-        return False
-    return True
+        return None
+    ratio = min(w, h) / max(w, h)  # 1.0 means perfect square
+    return "square" if ratio >= (1.0 - square_aspect_tol) else "rectangle"
 
+# ---------------------- Detection ----------------------
+def detect_quads(
+    bgr,
+    use_canny=True,
+    canny1=60, canny2=180,
+    adaptive=True,
+    blur_ksize=5,
+    min_perimeter=30,
+    min_area=400,
+    angle_tol=12,
+    square_aspect_tol=0.15
+):
+    stages = []
 
-def detect_squares(bgr,
-                   use_canny=True,
-                   canny1=60, canny2=180,
-                   adaptive=True,
-                   blur_ksize=5):
-    stage_imgs = []
-
-    # Step 1: Grayscale
+    # 1) Gray
     gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
-    stage_imgs.append(("Grayscale", gray))
+    stages.append(("Grayscale", gray))
 
-    # Step 2: Blur
+    # 2) Blur
     if blur_ksize and blur_ksize > 1:
-        gray = cv2.GaussianBlur(gray, (blur_ksize, blur_ksize), 0)
-    stage_imgs.append(("Gaussian Blur", gray))
+        gray_blur = cv2.GaussianBlur(gray, (blur_ksize, blur_ksize), 0)
+    else:
+        gray_blur = gray.copy()
+    stages.append(("Gaussian Blur", gray_blur))
 
     masks = []
 
-    # Step 3: Adaptive threshold
+    # 3) Adaptive threshold (robust to lighting)
     if adaptive:
-        thr = cv2.adaptiveThreshold(gray, 255,
-                                    cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                    cv2.THRESH_BINARY, 21, 3)
+        thr = cv2.adaptiveThreshold(
+            gray_blur, 255,
+            cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 21, 3
+        )
+        # Heuristic invert so shapes are white-ish
         if np.mean(thr) < 127:
             thr = 255 - thr
-        stage_imgs.append(("Adaptive Threshold", thr))
+        stages.append(("Adaptive Threshold", thr))
         masks.append(thr)
 
-    # Step 4: Canny
+    # 4) Canny edges
     if use_canny:
-        edges = cv2.Canny(gray, canny1, canny2)
-        stage_imgs.append(("Canny Edges", edges))
+        edges = cv2.Canny(gray_blur, canny1, canny2)
+        stages.append(("Canny Edges", edges))
         edges = cv2.dilate(edges, np.ones((3, 3), np.uint8), iterations=1)
-        stage_imgs.append(("Dilated Edges", edges))
+        stages.append(("Dilated Edges", edges))
         masks.append(edges)
 
-    # Step 5: Combine masks
+    # 5) Combine masks
     if not masks:
-        masks = [gray]
+        masks = [gray_blur]
     bin_img = masks[0].copy()
     for m in masks[1:]:
         bin_img = cv2.bitwise_or(bin_img, m)
-    stage_imgs.append(("Combined Mask", bin_img))
+    stages.append(("Combined Mask", bin_img))
 
-    # Step 6: Morph cleanup
+    # 6) Morph cleanup
     kernel = np.ones((3, 3), np.uint8)
-    bin_img = cv2.morphologyEx(bin_img, cv2.MORPH_CLOSE, kernel, iterations=1)
-    stage_imgs.append(("Morphological Cleanup", bin_img))
+    bin_closed = cv2.morphologyEx(bin_img, cv2.MORPH_CLOSE, kernel, iterations=1)
+    stages.append(("Morphological Cleanup", bin_closed))
 
-    # Step 7: Find squares
-    cnts_info = cv2.findContours(bin_img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    # 7) Contours -> quads
+    cnts_info = cv2.findContours(bin_closed, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     contours = cnts_info[0] if len(cnts_info) == 2 else cnts_info[1]
 
     squares = []
+    rectangles = []
+
     for c in contours:
         peri = cv2.arcLength(c, True)
-        if peri < 30:
+        if peri < min_perimeter:
             continue
         approx = cv2.approxPolyDP(c, 0.02 * peri, True)
-        if is_square(approx):
+        if len(approx) != 4:
+            continue
+        if not cv2.isContourConvex(approx):
+            continue
+        area = cv2.contourArea(approx)
+        if area < min_area:
+            continue
+
+        pts = approx.reshape(-1, 2).astype(np.float32)
+        if not is_right_angle_quad(pts, angle_tol=angle_tol):
+            continue
+
+        kind = classify_square_vs_rectangle(pts, square_aspect_tol=square_aspect_tol)
+        if kind == "square":
             squares.append(approx)
+        elif kind == "rectangle":
+            rectangles.append(approx)
 
-    out = bgr.copy()
-    cv2.polylines(out, squares, isClosed=True, color=(0, 255, 0), thickness=2)
-    stage_imgs.append(("Final Squares", out))
+    # 8) Build final overlay
+    overlay = bgr.copy()
+    if rectangles:
+        cv2.polylines(overlay, rectangles, isClosed=True, color=(255, 0, 0), thickness=2)  # blue
+    if squares:
+        cv2.polylines(overlay, squares, isClosed=True, color=(0, 255, 0), thickness=2)    # green
+    stages.append(("Final (green=squares, blue=rectangles)", overlay))
 
-    print(f"Found {len(squares)} square(s).")
-    show_side_by_side(stage_imgs)
-    return squares
+    return squares, rectangles, stages
 
-
-def show_side_by_side(stages):
-    """Display all stages side-by-side in one combined image."""
-    # Convert grayscale images to BGR for stacking
+# ---------------------- Visualization ----------------------
+def show_side_by_side(stages, window_title="Processing Steps (press any key to close)", max_row_height=260):
+    """
+    Stacks all (title, image) stages into 1 or 2 rows for quick inspection.
+    """
     visuals = []
     for title, img in stages:
-        if len(img.shape) == 2:
-            img_color = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
-        else:
-            img_color = img.copy()
-        visuals.append((title, img_color))
+        if img.ndim == 2:
+            img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+        visuals.append((title, img))
 
-    # Resize to same height
-    h = 250  # display height
+    # Resize to uniform height
     resized = []
+    h = max_row_height
     for title, img in visuals:
-        ratio = h / img.shape[0]
-        w = int(img.shape[1] * ratio)
+        r = h / img.shape[0]
+        w = int(img.shape[1] * r)
         resized.append((title, cv2.resize(img, (w, h))))
 
-    # Stack horizontally (if too many, stack in two rows)
-    num = len(resized)
-    halfway = (num + 1) // 2
-    row1 = [r[1] for r in resized[:halfway]]
-    row2 = [r[1] for r in resized[halfway:]] if num > halfway else []
+    # Arrange rows
+    n = len(resized)
+    half = (n + 1) // 2
+    row1_imgs = [im for _, im in resized[:half]]
+    row2_imgs = [im for _, im in resized[half:]] if n > half else []
 
-    if row2:
-        top = np.hstack(row1)
-        bottom = np.hstack(row2)
-        combined = np.vstack([top, bottom])
+    if row1_imgs:
+        top = np.hstack(row1_imgs)
+        combined = top
     else:
-        combined = np.hstack(row1)
+        combined = None
 
-    # Add titles on top of each stage
-    x_offset = 0
-    for title, img in resized[:halfway]:
-        cv2.putText(combined, title, (x_offset + 5, 20),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
-        x_offset += img.shape[1]
-    if row2:
-        x_offset = 0
-        for title, img in resized[halfway:]:
-            cv2.putText(combined, title, (x_offset + 5, h + 20),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
-            x_offset += img.shape[1]
+    if row2_imgs:
+        bottom = np.hstack(row2_imgs)
+        combined = np.vstack([combined, bottom]) if combined is not None else bottom
 
-    cv2.imshow("Processing Steps (press any key to close)", combined)
+    # Add stage titles
+    # (Compute x offsets by summing widths)
+    def annotate_titles(start_y, items):
+        x = 5
+        for title, im in items:
+            cv2.putText(combined, title, (x, start_y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+            x += im.shape[1]
+
+    if combined is None:
+        return None
+
+    annotate_titles(22, resized[:half])
+    if row2_imgs:
+        annotate_titles(h + 22, resized[half:])
+
+    cv2.imshow(window_title, combined)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
+    return combined
 
-
+# ---------------------- Main (IDE-friendly) ----------------------
 if __name__ == "__main__":
-    # You can hard-code your image file path here
-    img_path = "images/test.jpg"   # or "images/test.jpg" if it’s in a folder
+    # File picker for IDE use
+    root = tk.Tk()
+    root.withdraw()
+    img_path = filedialog.askopenfilename(
+        title="Select an image",
+        filetypes=[("Image files", "*.jpg *.jpeg *.png *.bmp *.tif *.tiff")]
+    )
+    if not img_path:
+        raise SystemExit("No file selected.")
 
     img = cv2.imread(img_path)
     if img is None:
-        raise SystemExit(f"⚠️ Could not load image: {img_path}")
+        raise SystemExit(f"Could not load image: {img_path}")
 
-    detect_squares(img)
+    squares, rectangles, stages = detect_quads(
+        img,
+        use_canny=True,
+        canny1=60, canny2=180,
+        adaptive=True,
+        blur_ksize=5,
+        min_perimeter=30,
+        min_area=400,
+        angle_tol=12,
+        square_aspect_tol=0.15
+    )
+
+    print(f"Squares: {len(squares)} | Rectangles: {len(rectangles)}")
+
+    composite = show_side_by_side(stages)
+
+    # Optional: save outputs next to the image
+    if composite is not None:
+        out_dir = Path(img_path).parent
+        cv2.imwrite(str(out_dir / "pipeline_debug.jpg"), composite)
+        # Last stage is overlay; save it separately too
+        cv2.imwrite(str(out_dir / "detections_overlay.jpg"), stages[-1][1])
+        print(f"Saved: {out_dir / 'pipeline_debug.jpg'}")
+        print(f"Saved: {out_dir / 'detections_overlay.jpg'}")
