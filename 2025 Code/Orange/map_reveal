@@ -1,0 +1,113 @@
+import runloop, motor_pair, motor
+from hub import motion_sensor, port, sound
+
+WHEEL_DIAMETER = 8.8    # wheel diameter in CM
+
+# define drive motors and PAIR_1
+LEFT_DRIVE = port.E
+RIGHT_DRIVE = port.A
+
+motor_pair.pair(motor_pair.PAIR_1, LEFT_DRIVE, RIGHT_DRIVE)
+DRIVE_PAIR = motor_pair.PAIR_1
+
+# Turn robot by amount target_angle in degrees via a PID (proportional, integral, derivative).You WILL need to adjust kp, ki, and kd for different robots
+# based on your wheel choice, robot's weight, attachments, etc. max_speed and acceleration will limit robot drive parameters.
+async def pid_turn(target_angle, *, max_speed=1000, acceleration=500, kp=.7, ki=0, kd=10, accuracy=3, beep=True, troubleshoot=False, stop_con=motor.HOLD):
+    # convert target angle to decidegrees
+    target_angle = target_angle*10
+
+    # wait until robot motion is stable - comment out if there is too much lag
+    # await runloop.until(motion_sensor.stable)
+
+    # Reset yaw to 0 before starting
+    motion_sensor.reset_yaw(0)
+
+    integral = 0
+    last_error = 0
+
+    while True:
+        # Current yaw angle
+        current_angle = motion_sensor.tilt_angles()[0]# yaw in degrees
+        error = target_angle - current_angle
+
+        # Wrap error into [-1800, 1800]
+        if error > 1800:
+            error -= 3600
+        elif error < -1800:
+            error += 3600
+
+        # Exit loop when robot angle is within accuracy
+        if abs(error) < accuracy:
+            break
+
+        # PID correction calculation
+        integral = integral + error
+        derivative = error - last_error
+        correction = kp * error + ki * integral + kd * derivative
+        last_error = error
+
+        # Clamp correction to max_speed
+        correction = max(-max_speed, min(max_speed, correction))
+
+        # Perform tank turn based on correction
+        motor_pair.move_tank(DRIVE_PAIR, -int(correction), int(correction), acceleration=acceleration)
+
+        # Print angle values to help troubleshoot
+        if(troubleshoot == True):
+            print(str(int(current_angle)) + " | " + str(int(target_angle)) + " | " + str(int(correction)))
+
+        await runloop.sleep_ms(10)
+
+    # Stop motors when loop is done
+    motor_pair.stop(DRIVE_PAIR, stop=stop_con)
+
+    # beep when function completes
+    if(beep==True):
+        sound.beep(1000)
+
+# straight line drive function, robot will correct heading based on gyro input
+# inputs are:
+#    distance - how far to drive in cm
+#    speed - how fast to drive (see motors for max limit)
+async def drive_straight(distance, speed, *, beep=True, accel=500):
+    average_deg = 0
+    direction = distance/abs(distance)
+    robo_speed = int(speed * direction * -1)
+
+    # calculate degrees to rotate wheel based on distance
+    target_degrees = abs(distance) * 360 / (WHEEL_DIAMETER * 3.14)
+
+    # zero motors and yaw
+    motor.reset_relative_position(LEFT_DRIVE, 0)
+    motor.reset_relative_position(RIGHT_DRIVE, 0)
+    motion_sensor.reset_yaw(0)
+
+    # wait until robot motion is stable - comment out if there is too much lag
+    # await runloop.until(motion_sensor.stable)
+
+    # drive until target distance has been travelled
+    while average_deg < target_degrees:
+        # get yaw value
+        error = motion_sensor.tilt_angles()[0]
+        correction = int(error*-2)
+        print(str(average_deg) + " : " + str(target_degrees) + " : " + str(motor.relative_position(LEFT_DRIVE)) + " : " + str(motor.relative_position(RIGHT_DRIVE)) + " : " + str(correction) + " : " + str(robo_speed))
+
+        motor_pair.move_tank(motor_pair.PAIR_1, robo_speed - correction, robo_speed + correction, acceleration=accel)
+
+        average_deg = abs((motor.relative_position(LEFT_DRIVE)-motor.relative_position(RIGHT_DRIVE))/2)
+
+    motor_pair.stop(motor_pair.PAIR_1)
+
+    # beep when function completes
+    if(beep==True):
+        sound.beep(500)
+async def main():
+    await drive_straight(77, 500)
+    runloop.sleep_ms(5000)
+    await pid_turn(34)
+    runloop.sleep_ms(1000)
+    await drive_straight(25,150)
+    await drive_straight(-27,400)
+    await pid_turn(-50)
+    await drive_straight(-100,600)
+runloop.run(main())
