@@ -1,7 +1,7 @@
 import runloop, motor_pair, motor
 from hub import motion_sensor, port, sound
 
-WHEEL_DIAMETER = 8.8    # wheel diameter in CM
+WHEEL_DIAMETER = 6.24    # wheel diameter in CM
 
 # define drive motors and PAIR_1
 LEFT_DRIVE = port.C

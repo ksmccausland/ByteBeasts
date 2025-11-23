@@ -1,7 +1,7 @@
 import runloop, motor_pair, motor
 from hub import motion_sensor, port, sound
 
-WHEEL_DIAMETER = 8.8    # wheel diameter in CM
+WHEEL_DIAMETER = 6.24    # wheel diameter in CM
 
 # define drive motors and PAIR_1
 LEFT_DRIVE = port.C
@@ -127,19 +127,19 @@ async def drive_straight(distance, speed, *, beep=True, accel=0.25, decel=0.25, 
         sound.beep(500)
 
 async def main():
-    await drive_straight(50,1000, beep=True)
-    await drive_straight(18.5,400, beep=True)
+    await drive_straight(70.5,1000, beep=True)
+    await drive_straight(26,400, beep=True)
     await motor.run_for_degrees(LEFT_ATTACH,-45,500,stop=motor.HOLD)
-    await drive_straight(-13,400, beep=True)
-    await drive_straight(9,400, beep=True)
+    await drive_straight(-18,400, beep=True)
+    await drive_straight(12.5,400, beep=True)
     await motor.run_for_degrees(LEFT_ATTACH,42,500,stop=motor.HOLD)
-    await drive_straight(-13,400, beep=True)
+    await drive_straight(-18,400, beep=True)
     await pid_turn(-4.8)
     await runloop.sleep_ms (500)
-    await drive_straight(14,300, beep=True)
+    await drive_straight(19.5,300, beep=True)
     await runloop.sleep_ms (500)
     await motor.run_for_degrees(LEFT_ATTACH,-45,500,stop=motor.HOLD)
-    await drive_straight(-70,1000, beep=True)
+    await drive_straight(-98.5,1000, beep=True)
     '''
     await motor.run_for_degrees(RIGHT_ATTACH,90*12,1000)
     await drive_straight(-5,1000, beep=True)

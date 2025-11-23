@@ -127,11 +127,11 @@ async def drive_straight(distance, speed, *, beep=True, accel=0.25, decel=0.25, 
         sound.beep(500)
 
 async def main():
-    await drive_straight(90,1000, beep=True)
+    await drive_straight(127,1000, beep=True)
     await motor.run_for_degrees(RIGHT_ATTACH,90*12,1000)
-    await drive_straight(-5,1000, beep=True)
+    await drive_straight(-7,1000, beep=True)
     await motor.run_for_degrees(RIGHT_ATTACH,-90*12,1000)
-    await drive_straight(15,1000, beep=True)
-    await drive_straight(-100,1000, beep=True)
+    await drive_straight(21,1000, beep=True)
+    await drive_straight(-141,1000, beep=True)
 
 runloop.run(main())

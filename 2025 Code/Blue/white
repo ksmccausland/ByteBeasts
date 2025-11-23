@@ -1,7 +1,7 @@
 import runloop, motor_pair, motor
 from hub import motion_sensor, port, sound
 
-WHEEL_DIAMETER = 8.8    # wheel diameter in CM
+WHEEL_DIAMETER = 6.24    # wheel diameter in CM
 
 # define drive motors and PAIR_1
 LEFT_DRIVE = port.C
@@ -124,14 +124,14 @@ async def drive_straight(distance, speed, *, beep=True, accel=0.25, decel=0.25, 
         sound.beep(500)
 
 async def main():
-    await drive_straight(100,1000)
+    await drive_straight(141,1000)
     await pid_turn(-90)
-    runloop.run(drive_straight(10, 700), motor.run_for_degrees(LEFT_ATTACH, 90,1000))
-    await drive_straight(-10,1000)
+    runloop.run(drive_straight(14, 700), motor.run_for_degrees(LEFT_ATTACH, 90,1000))
+    await drive_straight(-14,1000)
     await pid_turn(70)
-    await drive_straight(40,1000)
+    await drive_straight(56.5,1000)
     await pid_turn(40)
-    await drive_straight(90,1000)
+    await drive_straight(127,1000)
 
 
 runloop.run(main())
