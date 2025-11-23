@@ -18,11 +18,8 @@ async def pid_turn(target_angle, *, max_speed=1000, acceleration=500, kp=.7, ki=
     # convert target angle to decidegrees
     target_angle = target_angle*10
 
-    # wait until robot motion is stable - comment out if there is too much lag
-    await runloop.until(motion_sensor.stable)
-
     # Reset yaw to 0 before starting
-    # motion_sensor.reset_yaw(0)
+    motion_sensor.reset_yaw(0)
 
     integral = 0
     last_error = 0
