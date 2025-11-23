@@ -6,34 +6,38 @@ import color
 COLOR_SENSOR = port.E
 
 # --- Define your functions for each color ---
-async def action_red():
-    print("Running RED function")
-    # await motor_pair.move_for_degrees(port.A, port.E, 720, 50)
-
-async def action_green():
-    print("Running GREEN function")
-    # await pid_turn(-90)
+async def action_azure():
+    print("Running AZURE function")
+    # await pid_turn(90)
 
 async def action_blue():
     print("Running BLUE function")
     # await motor.run_for_degrees(port.C, 360, 50)
 
+async def action_green():
+    print("Running GREEN function")
+    # await pid_turn(-90)
+
+async def action_red():
+    print("Running RED function")
+    # await motor_pair.move_for_degrees(port.A, port.E, 720, 50)
+
+async def action_white():
+    print("Running WHITE function")
+    # await motor_pair.move_for_degrees(port.A, port.E, 720, 50)
+
 async def action_yellow():
     print("Running YELLOW function")
     # await sound.play("Boing")
 
-async def action_azure():
-    print("Running AZURE function")
-    # await pid_turn(90)
-
-
 # --- Color lookup table (color -> (number, function)) ---
 color_actions = {
-    color.RED:       (1, action_red),
-    color.GREEN:     (2, action_green),
-    color.BLUE:      (3, action_blue),
-    color.YELLOW:    (4, action_yellow),
-    color.AZURE:     (5, action_azure),
+    color.AZURE:     ('Az', action_azure),
+    color.BLUE:      ('Bl', action_blue),
+    color.GREEN:     ('Gr', action_green),
+    color.RED:       ('Re', action_red),
+    color.WHITE:     ('Wh', action_white),
+    color.YELLOW:    ('Ye', action_yellow)
 }
 
 # --- Main loop ---
