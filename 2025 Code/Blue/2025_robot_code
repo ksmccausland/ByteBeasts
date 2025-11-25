@@ -131,12 +131,12 @@ async def drive_straight(distance, speed, *, beep=True, accel=0.25, decel=0.25, 
 async def action_azure():
     print("Running AZURE function")
 
-    await drive_straight(127,1000, beep=True)
+    await drive_straight(63,1000, beep=True)
     await motor.run_for_degrees(RIGHT_ATTACH,90*12,1000)
     await drive_straight(-7,1000, beep=True)
     await motor.run_for_degrees(RIGHT_ATTACH,-90*12,1000)
-    await drive_straight(21,1000, beep=True)
-    await drive_straight(-141,1000, beep=True)
+    await drive_straight(15,1000, beep=True)
+    await drive_straight(-90,1000, beep=True)
 
 async def action_blue():
     print("Running BLUE function")
@@ -163,23 +163,23 @@ async def action_green():
 async def action_red():
     print("Running RED function")
 
-    await drive_straight(70.5,1000, beep=True)
-    await drive_straight(26,400, beep=True)
-    await motor.run_for_degrees(LEFT_ATTACH,-45,500,stop=motor.HOLD)
-    await drive_straight(-18,400, beep=True)
-    await drive_straight(12.5,400, beep=True)
-    await motor.run_for_degrees(LEFT_ATTACH,42,500,stop=motor.HOLD)
-    await drive_straight(-18,400, beep=True)
-    await pid_turn(-4.8)
+    await drive_straight(40,1000, beep=True)
+    await drive_straight(10,400, beep=True)
+    #await motor.run_for_degrees(LEFT_ATTACH,-45,500,stop=motor.HOLD)
+    await drive_straight(-10,400, beep=True)
+    #await drive_straight(12.5,400, beep=True)
+    #await motor.run_for_degrees(LEFT_ATTACH,42,500,stop=motor.HOLD)
+    #await drive_straight(-18,400, beep=True)
+    await pid_turn(5)
     await runloop.sleep_ms (500)
-    await drive_straight(19.5,300, beep=True)
+    await drive_straight(12,300, beep=True)
     await runloop.sleep_ms (500)
     await motor.run_for_degrees(LEFT_ATTACH,-45,500,stop=motor.HOLD)
     await drive_straight(-98.5,1000, beep=True)
 
 async def action_white():
     print("Running WHITE function")
-    
+
     await drive_straight(141,1000)
     await pid_turn(-90)
     runloop.run(drive_straight(14, 700), motor.run_for_degrees(LEFT_ATTACH, 90,1000))
@@ -211,11 +211,11 @@ async def action_yellow():
 
 # --- Color lookup table (color -> (number, function)) ---
 color_actions = {
-    color.AZURE:     ('Az', action_azure),
-    color.BLUE:      ('Bl', action_blue),
-    color.GREEN:     ('Gr', action_green),
-    color.RED:       ('Re', action_red),
-    color.WHITE:     ('Wh', action_white),
+    color.AZURE:    ('Az', action_azure),
+    color.BLUE:    ('Bl', action_blue),
+    color.GREEN:    ('Gr', action_green),
+    color.RED:    ('Re', action_red),
+    color.WHITE:    ('Wh', action_white),
     color.YELLOW:    ('Ye', action_yellow)
 }
 
