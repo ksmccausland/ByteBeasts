@@ -1,5 +1,5 @@
 import runloop, motor_pair, motor, color, color_sensor
-from hub import motion_sensor, port, sound, button, light_matrix
+from hub import light, motion_sensor, port, sound, button, light_matrix
 
 WHEEL_DIAMETER = 6.24    # wheel diameter in CM (6.24cm)
 
@@ -206,30 +206,33 @@ async def action_white():
 
 async def action_yellow():
     print("Running YELLOW function")
+    light_matrix.show_image(light_matrix.IMAGE_GIRAFFE)
+    ratio = int(40/24)
+    deploy = 160*ratio
+    pause = 500
+    i=0
+    deployArm = 180
 
-    for i in range(2):
-        await runloop.sleep_ms(750)
-        await motor.run_for_degrees(port.F, -125,1000)
-        await runloop.sleep_ms(500)
-        await motor.run_for_degrees(port.F, 125,500)
-    #await runloop.sleep_ms(250)
-    #await pid_turn(90, beep=True)
-    #await runloop.sleep_ms(125)
-    #await pid_turn(135)
+    
+    await motor.run_for_degrees(LEFT_ATTACH,deploy,1000)
+    await runloop.sleep_ms(pause)
+    await motor.run_for_degrees(LEFT_ATTACH,-1*(deploy),200)
 
+    for i in range(3):
+        await motor.run_for_degrees(LEFT_ATTACH,1*(deploy),1000)
+        await runloop.sleep_ms(pause)
+        await motor.run_for_degrees(LEFT_ATTACH,-1*(deploy),200)
+        await runloop.sleep_ms(pause)
 
-    #for i in range(3):
-        #await runloop.sleep_ms(750)
-        #await motor.run_for_degrees(port.F, -150,1000)
-        #await runloop.sleep_ms(500)
-        #await motor.run_for_degrees(port.F, 175,750)
+    runloop.run(drive_straight(5,300), motor.run_for_degrees(RIGHT_ATTACH, -deployArm,500))
+    await runloop.sleep_ms(1000)
+    await motor.run_for_degrees(RIGHT_ATTACH, deployArm,500)
 
 # --- Color lookup table (color -> (number, function)) ---
 color_actions = {
     color.AZURE:    ('Az', action_azure),
     color.BLUE:     ('Bl', action_blue),
     color.GREEN:    ('Gr', action_green),
-    color.ORANGE:   ('Or', action_orange), 
     color.RED:      ('Re', action_red),
     color.WHITE:    ('Wh', action_white),
     color.YELLOW:   ('Ye', action_yellow)
@@ -244,7 +247,7 @@ async def main():
     while True:
         # Read current color
         current_color = color_sensor.color(COLOR_SENSOR)
-        print(color_sensor.rgbi(COLOR_SENSOR))
+        print(color_sensor.color(COLOR_SENSOR))
 
         # If color changed, update the light matrix
         if current_color != last_color:
