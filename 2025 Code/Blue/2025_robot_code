@@ -70,7 +70,7 @@ async def pid_turn(target_angle, *, max_speed=1000, acceleration=500, kp=.7, ki=
 
 # distance (cm), speed (deg/s). Positive distance = forward.
 # accel/decel are distances (as a fraction of total) over which to ramp.
-async def drive_straight(distance, speed, *, beep=True, accel=0.25, decel=0.25, end=motor.HOLD):
+async def drive_straight(distance, speed, *, beep=True, accel=0.25, decel=0.25, end=motor.HOLD, reset=True):
     # direction/sign
     direction = -1 if distance >= 0 else 1
     max_speed = abs(int(speed))
@@ -83,7 +83,9 @@ async def drive_straight(distance, speed, *, beep=True, accel=0.25, decel=0.25, 
     # encoder & yaw reset
     motor.reset_relative_position(LEFT_DRIVE, 0)
     motor.reset_relative_position(RIGHT_DRIVE, 0)
-    motion_sensor.reset_yaw(0)
+
+    if reset == True:
+        motion_sensor.reset_yaw(0)
 
     # wait until robot motion is stable (optional)
     # await runloop.until(motion_sensor.stable)
@@ -130,64 +132,77 @@ async def drive_straight(distance, speed, *, beep=True, accel=0.25, decel=0.25, 
 # --- Define your functions for each color ---
 async def action_azure():
     print("Running AZURE function")
+    deploy = 15
 
-    await drive_straight(63,1000, beep=True)
-    await motor.run_for_degrees(RIGHT_ATTACH,90*12,1000)
-    await drive_straight(-7,1000, beep=True)
-    await motor.run_for_degrees(RIGHT_ATTACH,-90*12,1000)
-    await drive_straight(15,1000, beep=True)
-    await drive_straight(-90,1000, beep=True)
+    await drive_straight(64,1000, beep=True)
+    await motor.run_for_degrees(RIGHT_ATTACH,90*deploy,1000)
+    await runloop.sleep_ms(500)
+    await drive_straight(-7,500, beep=True, reset=False)
+    await motor.run_for_degrees(RIGHT_ATTACH,-90*deploy,1000)
+    await drive_straight(20,700, beep=True, reset=False)
+    await runloop.sleep_ms(200)
+    await drive_straight(-70,1000, beep=True, reset=False)
 
 async def action_blue():
     print("Running BLUE function")
 
-    await drive_straight(62,700, beep=True)
-    await pid_turn(44)
-    await drive_straight(42,700, beep=True)
-    #await pid_turn(35)
-    #await drive_straight(-12,500, beep=True)
-    #await pid_turn(-20)
-    await motor.run_for_degrees(LEFT_ATTACH,105,1000,stop=motor.HOLD)
-    await runloop.sleep_ms(700)
-    await drive_straight(-31,500, beep=True)
-    await drive_straight(21,700, beep=True)
-    await pid_turn(-50)
-    await drive_straight(-35,700, beep=True)
+    await drive_straight(40, 900)
+    await motor.run_for_degrees(RIGHT_ATTACH, -700, 1000)
+    await runloop.sleep_ms(500)
+    await motor.run_for_degrees(LEFT_ATTACH, 120, 1000)
+    await runloop.sleep_ms(1000)
+    runloop.run(motor.run_for_degrees(RIGHT_ATTACH, 700, 1000), drive_straight(-20, 600))
+    await drive_straight(10, 600)
+    await pid_turn(-30)
+    await drive_straight(-40, 1000)
     await pid_turn(-90)
-    await drive_straight(42,700, beep=True)
 
 async def action_green():
     print("Running GREEN function")
-    # await pid_turn(-90)
+    deploy = 80
+    lift = -45
+    stow = deploy+lift
+    
+    await drive_straight(-80, 900)
+    await pid_turn(-90)
+    runloop.run(drive_straight(-16,500),motor.run_for_degrees(LEFT_ATTACH,deploy*13, 500)) 
+    await pid_turn(90)
+    await drive_straight(-14,500)
+    await motor.run_for_degrees(LEFT_ATTACH,lift*13, 500)
+    await runloop.sleep_ms(1000)
+    await pid_turn(-25)
+    runloop.run(drive_straight(90,1000), motor.run_for_degrees(LEFT_ATTACH,-stow*13, 500))
+
+async def action_orange():
+    print("Running ORANGE function")
 
 async def action_red():
     print("Running RED function")
+    deploy = -50
 
     await drive_straight(40,1000, beep=True)
-    await drive_straight(10,400, beep=True)
-    #await motor.run_for_degrees(LEFT_ATTACH,-45,500,stop=motor.HOLD)
-    await drive_straight(-10,400, beep=True)
-    #await drive_straight(12.5,400, beep=True)
-    #await motor.run_for_degrees(LEFT_ATTACH,42,500,stop=motor.HOLD)
-    #await drive_straight(-18,400, beep=True)
-    await pid_turn(5)
+    await drive_straight(10,400, beep=True, reset=False)
+    await drive_straight(-10,400, beep=True, reset=False)
+    await pid_turn(7)
+    await drive_straight(10,300, beep=True)
     await runloop.sleep_ms (500)
-    await drive_straight(12,300, beep=True)
-    await runloop.sleep_ms (500)
-    await motor.run_for_degrees(LEFT_ATTACH,-45,500,stop=motor.HOLD)
-    await drive_straight(-98.5,1000, beep=True)
+    await motor.run_for_degrees(LEFT_ATTACH,deploy,600,stop=motor.HOLD)
+    await drive_straight(-50,1000, beep=True)
+    await motor.run_for_degrees(LEFT_ATTACH,-deploy,600,stop=motor.HOLD)
 
 async def action_white():
     print("Running WHITE function")
 
-    await drive_straight(141,1000)
+    await drive_straight(72,700)
     await pid_turn(-90)
-    runloop.run(drive_straight(14, 700), motor.run_for_degrees(LEFT_ATTACH, 90,1000))
-    await drive_straight(-14,1000)
-    await pid_turn(70)
-    await drive_straight(56.5,1000)
-    await pid_turn(40)
-    await drive_straight(127,1000)
+    await motor.run_for_degrees(LEFT_ATTACH, 90,1000)
+    await runloop.sleep_ms(500)
+    await drive_straight(10, 600)
+    await drive_straight(-8,600)
+    await pid_turn(70, kp=.9)
+    await drive_straight(33,1000)
+    await pid_turn(40, kp=.9)
+    await drive_straight(65,1000)
 
 async def action_yellow():
     print("Running YELLOW function")
@@ -212,11 +227,12 @@ async def action_yellow():
 # --- Color lookup table (color -> (number, function)) ---
 color_actions = {
     color.AZURE:    ('Az', action_azure),
-    color.BLUE:    ('Bl', action_blue),
+    color.BLUE:     ('Bl', action_blue),
     color.GREEN:    ('Gr', action_green),
-    color.RED:    ('Re', action_red),
+    color.ORANGE:   ('Or', action_orange), 
+    color.RED:      ('Re', action_red),
     color.WHITE:    ('Wh', action_white),
-    color.YELLOW:    ('Ye', action_yellow)
+    color.YELLOW:   ('Ye', action_yellow)
 }
 
 # --- Main loop ---
@@ -228,6 +244,7 @@ async def main():
     while True:
         # Read current color
         current_color = color_sensor.color(COLOR_SENSOR)
+        print(color_sensor.rgbi(COLOR_SENSOR))
 
         # If color changed, update the light matrix
         if current_color != last_color:
