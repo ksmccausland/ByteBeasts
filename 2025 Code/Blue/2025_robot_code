@@ -173,9 +173,6 @@ async def action_green():
     await pid_turn(-25)
     runloop.run(drive_straight(90,1000), motor.run_for_degrees(LEFT_ATTACH,-stow*13, 500))
 
-async def action_orange():
-    print("Running ORANGE function")
-
 async def action_red():
     print("Running RED function")
     deploy = -50
@@ -206,7 +203,6 @@ async def action_white():
 
 async def action_yellow():
     print("Running YELLOW function")
-    light_matrix.show_image(light_matrix.IMAGE_GIRAFFE)
     ratio = int(40/24)
     deploy = 160*ratio
     pause = 500
