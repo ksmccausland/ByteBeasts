@@ -15,57 +15,61 @@ DRIVE_PAIR = motor_pair.PAIR_1
 
 # Turn robot by amount target_angle in degrees via a PID (proportional, integral, derivative).You WILL need to adjust kp, ki, and kd for different robots
 # based on your wheel choice, robot's weight, attachments, etc. max_speed and acceleration will limit robot drive parameters.
-async def pid_turn(target_angle, *, max_speed=1000, min_speed=30, acceleration=500, kp=.8, ki=0, kd=20, accuracy=3, beep=True, troubleshoot=False):
-    # convert target angle to decidegrees
-    target_angle = target_angle*10
+async def pid_turn(target_angle, *, max_speed=1000, min_speed=50, acceleration=500, kp=1.5, ki=1, kd=1, accuracy=3, beep=True, troubleshoot=False):
+    # target_angle is in degrees, convert to decidegrees
+    target_angle *= 10
 
-    # Reset yaw to 0 before starting
     motion_sensor.reset_yaw(0)
 
     integral = 0
     last_error = 0
+    dt = 0.01            # 10 ms
+    max_integral = 10000# tweak as needed
 
     while True:
-        # Current yaw angle
-        current_angle = motion_sensor.tilt_angles()[0]# yaw in degrees
+        current_angle = motion_sensor.tilt_angles()[0]# decidegrees
         error = target_angle - current_angle
 
-        # Wrap error into [-1800, 1800]
+        # Wrap error into [-1800, 1800] decidegrees
         if error > 1800:
             error -= 3600
         elif error < -1800:
             error += 3600
 
-        # Exit loop when robot angle is within accuracy
+        # Stop when close enough (accuracy also in decidegrees)
         if abs(error) < accuracy:
             break
 
-        # PID correction calculation
-        integral = integral + error
-        derivative = error - last_error
+        # Derivative uses previous error
+        derivative = (error - last_error) / dt
+
+        # Correction uses *old* integral
         correction = kp * error + ki * integral + kd * derivative
+
+        # Now update integral (after using it)
+        integral += error * dt
+        integral = max(-max_integral, min(max_integral, integral))
+
         last_error = error
 
-        # Clamp correction to max_speed
+        if troubleshoot:
+            print("ang:",current_angle,"err:", error, "corr:", correction, "int:", integral, "d:", derivative)
+
+        # Clamp correction
         correction = max(-max_speed, min(max_speed, correction))
 
+        # Enforce minimum speed
         if abs(correction) < min_speed:
             correction = min_speed * (1 if correction >= 0 else -1)
 
-        # Perform tank turn based on correction
-        motor_pair.move_tank(DRIVE_PAIR, -int(correction), int(correction), acceleration=acceleration)
-
-        # Print angle values to help troubleshoot
-        if(troubleshoot == True):
-            print(str(int(current_angle)) + " | " + str(int(target_angle)) + " | " + str(int(correction)))
+        motor_pair.move_tank(DRIVE_PAIR, -int(correction), int(correction),
+                            acceleration=acceleration)
 
         await runloop.sleep_ms(10)
 
-    # Stop motors when loop is done
     motor_pair.stop(DRIVE_PAIR, stop=motor.SMART_BRAKE)
 
-    # beep when function completes
-    if(beep==True):
+    if beep:
         sound.beep(1000)
 
 # distance (cm), speed (deg/s). Positive distance = forward.
@@ -203,7 +207,7 @@ async def action_white():
 
 async def action_yellow():
     print("Running YELLOW function")
-    await pid_turn(90)
+    await pid_turn(90, troubleshoot=True)
     '''
     ratio = int(40/24)
     deploy = 160*ratio
@@ -246,7 +250,6 @@ async def main():
     while True:
         # Read current color
         current_color = color_sensor.color(COLOR_SENSOR)
-        print(motion_sensor.tilt_angles()[0])
 
         # If color changed, update the light matrix
         if current_color != last_color:
