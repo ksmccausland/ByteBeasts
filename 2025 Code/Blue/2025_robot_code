@@ -15,15 +15,12 @@ DRIVE_PAIR = motor_pair.PAIR_1
 
 # Turn robot by amount target_angle in degrees via a PID (proportional, integral, derivative).You WILL need to adjust kp, ki, and kd for different robots
 # based on your wheel choice, robot's weight, attachments, etc. max_speed and acceleration will limit robot drive parameters.
-async def pid_turn(target_angle, *, max_speed=1000, acceleration=500, kp=.7, ki=0, kd=10, accuracy=3, beep=True, troubleshoot=False):
+async def pid_turn(target_angle, *, max_speed=1000, min_speed=30, acceleration=500, kp=.8, ki=0, kd=20, accuracy=3, beep=True, troubleshoot=False):
     # convert target angle to decidegrees
     target_angle = target_angle*10
 
-    # wait until robot motion is stable - comment out if there is too much lag
-    # await runloop.until(motion_sensor.stable)
-
     # Reset yaw to 0 before starting
-    # motion_sensor.reset_yaw(0)
+    motion_sensor.reset_yaw(0)
 
     integral = 0
     last_error = 0
@@ -51,6 +48,9 @@ async def pid_turn(target_angle, *, max_speed=1000, acceleration=500, kp=.7, ki=
 
         # Clamp correction to max_speed
         correction = max(-max_speed, min(max_speed, correction))
+
+        if abs(correction) < min_speed:
+            correction = min_speed * (1 if correction >= 0 else -1)
 
         # Perform tank turn based on correction
         motor_pair.move_tank(DRIVE_PAIR, -int(correction), int(correction), acceleration=acceleration)
@@ -203,6 +203,8 @@ async def action_white():
 
 async def action_yellow():
     print("Running YELLOW function")
+    await pid_turn(90)
+    '''
     ratio = int(40/24)
     deploy = 160*ratio
     pause = 500
@@ -223,6 +225,7 @@ async def action_yellow():
     runloop.run(drive_straight(5,300), motor.run_for_degrees(RIGHT_ATTACH, -deployArm,500))
     await runloop.sleep_ms(1000)
     await motor.run_for_degrees(RIGHT_ATTACH, deployArm,500)
+    '''
 
 # --- Color lookup table (color -> (number, function)) ---
 color_actions = {
@@ -243,7 +246,7 @@ async def main():
     while True:
         # Read current color
         current_color = color_sensor.color(COLOR_SENSOR)
-        print(color_sensor.color(COLOR_SENSOR))
+        print(motion_sensor.tilt_angles()[0])
 
         # If color changed, update the light matrix
         if current_color != last_color:
