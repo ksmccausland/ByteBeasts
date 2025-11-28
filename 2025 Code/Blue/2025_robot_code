@@ -16,6 +16,9 @@ DRIVE_PAIR = motor_pair.PAIR_1
 # Turn robot by amount target_angle in degrees via a PID (proportional, integral, derivative).You WILL need to adjust kp, ki, and kd for different robots
 # based on your wheel choice, robot's weight, attachments, etc. max_speed and acceleration will limit robot drive parameters.
 async def pid_turn(target_angle, *, max_speed=1000, min_speed=50, acceleration=500, kp=1.5, ki=1, kd=1, accuracy=3, beep=True, troubleshoot=False):
+    # pause for 0.3sec before running
+    runloop.sleep_ms(300)
+    
     # target_angle is in degrees, convert to decidegrees
     target_angle *= 10
 
@@ -75,6 +78,9 @@ async def pid_turn(target_angle, *, max_speed=1000, min_speed=50, acceleration=5
 # distance (cm), speed (deg/s). Positive distance = forward.
 # accel/decel are distances (as a fraction of total) over which to ramp.
 async def drive_straight(distance, speed, *, beep=True, accel=0.25, decel=0.25, end=motor.HOLD, reset=True):
+    # pause for 0.3sec before running
+    runloop.sleep_ms(300)
+
     # direction/sign
     direction = -1 if distance >= 0 else 1
     max_speed = abs(int(speed))
@@ -166,10 +172,10 @@ async def action_green():
     deploy = 80
     lift = -45
     stow = deploy+lift
-    
+
     await drive_straight(-80, 900)
     await pid_turn(-90)
-    runloop.run(drive_straight(-16,500),motor.run_for_degrees(LEFT_ATTACH,deploy*13, 500)) 
+    runloop.run(drive_straight(-16,500),motor.run_for_degrees(LEFT_ATTACH,deploy*13, 500))
     await pid_turn(90)
     await drive_straight(-14,500)
     await motor.run_for_degrees(LEFT_ATTACH,lift*13, 500)
@@ -215,7 +221,7 @@ async def action_yellow():
     i=0
     deployArm = 180
 
-    
+
     await motor.run_for_degrees(LEFT_ATTACH,deploy,1000)
     await runloop.sleep_ms(pause)
     await motor.run_for_degrees(LEFT_ATTACH,-1*(deploy),200)
@@ -234,11 +240,11 @@ async def action_yellow():
 # --- Color lookup table (color -> (number, function)) ---
 color_actions = {
     color.AZURE:    ('Az', action_azure),
-    color.BLUE:     ('Bl', action_blue),
+    color.BLUE:    ('Bl', action_blue),
     color.GREEN:    ('Gr', action_green),
-    color.RED:      ('Re', action_red),
+    color.RED:    ('Re', action_red),
     color.WHITE:    ('Wh', action_white),
-    color.YELLOW:   ('Ye', action_yellow)
+    color.YELLOW:('Ye', action_yellow)
 }
 
 # --- Main loop ---
