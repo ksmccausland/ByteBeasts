@@ -18,7 +18,7 @@ DRIVE_PAIR = motor_pair.PAIR_1
 async def pid_turn(target_angle, *, max_speed=1000, min_speed=50, acceleration=500, kp=1.5, ki=1, kd=1, accuracy=3, beep=True, troubleshoot=False):
     # pause for 0.3sec before running
     runloop.sleep_ms(300)
-    
+
     # target_angle is in degrees, convert to decidegrees
     target_angle *= 10
 
@@ -156,8 +156,8 @@ async def action_azure():
 async def action_blue():
     print("Running BLUE function")
 
-    await drive_straight(40, 900)
-    await motor.run_for_degrees(RIGHT_ATTACH, -700, 1000)
+    # await drive_straight(40, 900)
+    await motor.run_for_degrees(RIGHT_ATTACH, -640, 1000)
     await runloop.sleep_ms(500)
     await motor.run_for_degrees(LEFT_ATTACH, 120, 1000)
     await runloop.sleep_ms(1000)
@@ -185,17 +185,16 @@ async def action_green():
 
 async def action_red():
     print("Running RED function")
-    deploy = -50
+    deploy = -90
 
-    await drive_straight(40,1000, beep=True)
-    await drive_straight(10,400, beep=True, reset=False)
-    await drive_straight(-10,400, beep=True, reset=False)
-    await pid_turn(7)
-    await drive_straight(10,300, beep=True)
+    await drive_straight(-5, 300)
+    runloop.run(drive_straight(65,1000, beep=True), motor.run_for_degrees(LEFT_ATTACH,deploy,600,stop=motor.HOLD)) 
+    await drive_straight(-20,400, beep=True, reset=False)
+    await motor.run_for_degrees(LEFT_ATTACH,-deploy-10,600,stop=motor.HOLD)
+    await drive_straight(12,300, beep=True)
     await runloop.sleep_ms (500)
-    await motor.run_for_degrees(LEFT_ATTACH,deploy,600,stop=motor.HOLD)
+    await motor.run_for_degrees(LEFT_ATTACH,-60,600,stop=motor.HOLD)
     await drive_straight(-50,1000, beep=True)
-    await motor.run_for_degrees(LEFT_ATTACH,-deploy,600,stop=motor.HOLD)
 
 async def action_white():
     print("Running WHITE function")
@@ -213,29 +212,32 @@ async def action_white():
 
 async def action_yellow():
     print("Running YELLOW function")
-    await pid_turn(90, troubleshoot=True)
-    '''
+
     ratio = int(40/24)
     deploy = 160*ratio
     pause = 500
     i=0
-    deployArm = 180
+    deployArm = 110
 
+    await drive_straight(-3,300)
+    await drive_straight(50,750)
 
     await motor.run_for_degrees(LEFT_ATTACH,deploy,1000)
     await runloop.sleep_ms(pause)
     await motor.run_for_degrees(LEFT_ATTACH,-1*(deploy),200)
-
+    
     for i in range(3):
         await motor.run_for_degrees(LEFT_ATTACH,1*(deploy),1000)
         await runloop.sleep_ms(pause)
         await motor.run_for_degrees(LEFT_ATTACH,-1*(deploy),200)
         await runloop.sleep_ms(pause)
-
-    runloop.run(drive_straight(5,300), motor.run_for_degrees(RIGHT_ATTACH, -deployArm,500))
+    
+    runloop.run(drive_straight(27,500), motor.run_for_degrees(RIGHT_ATTACH, -deployArm,500))
     await runloop.sleep_ms(1000)
+    await pid_turn(90)
+    await pid_turn(100)
+    await drive_straight(70,1000)
     await motor.run_for_degrees(RIGHT_ATTACH, deployArm,500)
-    '''
 
 # --- Color lookup table (color -> (number, function)) ---
 color_actions = {
