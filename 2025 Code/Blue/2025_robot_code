@@ -145,27 +145,36 @@ async def action_azure():
     deploy = 15
 
     await drive_straight(64,1000, beep=True)
-    await motor.run_for_degrees(RIGHT_ATTACH,90*deploy,1000)
+    await motor.run_for_degrees(RIGHT_ATTACH,90*deploy,600)
     await runloop.sleep_ms(500)
     await drive_straight(-7,500, beep=True, reset=False)
-    await motor.run_for_degrees(RIGHT_ATTACH,-90*deploy,1000)
-    await drive_straight(20,700, beep=True, reset=False)
+    await motor.run_for_degrees(RIGHT_ATTACH,-90*deploy,600)
+    await drive_straight(20,600, beep=True, reset=False)
     await runloop.sleep_ms(200)
     await drive_straight(-70,1000, beep=True, reset=False)
+
+async def action_black():
+    print("Running BLACK function")
+
+    await drive_straight(90, 1000)
+    await pid_turn(98)
+    await drive_straight(7, 600)
+    motor.run(RIGHT_ATTACH,200)
+    await pid_turn(10)
+    
 
 async def action_blue():
     print("Running BLUE function")
 
-    # await drive_straight(40, 900)
+    await drive_straight(37, 900)
     await motor.run_for_degrees(RIGHT_ATTACH, -640, 1000)
-    await runloop.sleep_ms(500)
     await motor.run_for_degrees(LEFT_ATTACH, 120, 1000)
     await runloop.sleep_ms(1000)
     runloop.run(motor.run_for_degrees(RIGHT_ATTACH, 700, 1000), drive_straight(-20, 600))
-    await drive_straight(10, 600)
+    await drive_straight(7, 600)
     await pid_turn(-30)
     await drive_straight(-40, 1000)
-    await pid_turn(-90)
+    await pid_turn(-60)
 
 async def action_green():
     print("Running GREEN function")
@@ -191,7 +200,7 @@ async def action_red():
     runloop.run(drive_straight(65,1000, beep=True), motor.run_for_degrees(LEFT_ATTACH,deploy,600,stop=motor.HOLD)) 
     await drive_straight(-20,400, beep=True, reset=False)
     await motor.run_for_degrees(LEFT_ATTACH,-deploy-10,600,stop=motor.HOLD)
-    await drive_straight(12,300, beep=True)
+    await drive_straight(12,300, beep=True, reset=False)
     await runloop.sleep_ms (500)
     await motor.run_for_degrees(LEFT_ATTACH,-60,600,stop=motor.HOLD)
     await drive_straight(-50,1000, beep=True)
@@ -217,7 +226,7 @@ async def action_yellow():
     deploy = 160*ratio
     pause = 500
     i=0
-    deployArm = 110
+    deployArm = 115
 
     await drive_straight(-3,300)
     await drive_straight(50,750)
@@ -242,11 +251,12 @@ async def action_yellow():
 # --- Color lookup table (color -> (number, function)) ---
 color_actions = {
     color.AZURE:    ('Az', action_azure),
-    color.BLUE:    ('Bl', action_blue),
+    color.BLACK:    ('Ba', action_black),
+    color.BLUE:     ('Bu', action_blue),
     color.GREEN:    ('Gr', action_green),
-    color.RED:    ('Re', action_red),
+    color.RED:      ('Re', action_red),
     color.WHITE:    ('Wh', action_white),
-    color.YELLOW:('Ye', action_yellow)
+    color.YELLOW:   ('Ye', action_yellow)
 }
 
 # --- Main loop ---
