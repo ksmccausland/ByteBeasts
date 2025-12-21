@@ -147,7 +147,7 @@ async def main():
     
     # drive from home and turn to minecart
     runloop.run(drive_straight(36.5*2.54,1000), motor.run_for_degrees(RIGHT_ATTACH,rightLift,500))
-    await pivot_turn(-89, speed=150)
+    await pivot_turn(-88.5, speed=150)
 
     # interact with minecart
     runloop.run(motor.run_for_degrees(LEFT_ATTACH,int(200*leftRatio),-400, stop=motor.COAST), motor.run_for_degrees(RIGHT_ATTACH,-1*rightLift,500))
@@ -158,7 +158,7 @@ async def main():
     runloop.run(motor.run_for_degrees(RIGHT_ATTACH,rightLift*-1,200), drive_straight(-5*2.54,300, reset=False))
 
     # navigate to seal
-    runloop.run(pivot_turn(-39,'r',speed=200), motor.run_for_degrees(LEFT_ATTACH,180,700))
+    runloop.run(pivot_turn(-39.5,'r',speed=200), motor.run_for_degrees(LEFT_ATTACH,180,700))
     await drive_straight(18*2.54,700)
     
     # interact with seal
