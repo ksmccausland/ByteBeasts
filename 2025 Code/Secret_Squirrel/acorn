@@ -1,0 +1,166 @@
+import runloop, motor_pair, motor, color, color_sensor
+from hub import light, motion_sensor, port, sound, button, light_matrix
+
+WHEEL_DIAMETER = 6.24    # wheel diameter in CM (6.24cm)
+
+# define drive motors and PAIR_1
+LEFT_DRIVE = port.C
+RIGHT_DRIVE = port.A
+LEFT_ATTACH = port.B
+RIGHT_ATTACH = port.F
+COLOR_SENSOR = port.E
+
+motor_pair.pair(motor_pair.PAIR_1, LEFT_DRIVE, RIGHT_DRIVE)
+DRIVE_PAIR = motor_pair.PAIR_1
+
+# distance (cm), speed (deg/s). Positive distance = forward.
+# accel/decel are distances (as a fraction of total) over which to ramp.
+async def drive_straight(distance, speed, *, beep=True, accel=0.25, decel=0.25, end=motor.HOLD, reset=True):
+    # pause for 0.3sec before running
+    runloop.sleep_ms(300)
+
+    # direction/sign
+    direction = -1 if distance >= 0 else 1
+    max_speed = abs(int(speed))
+
+    # convert cm -> wheel degrees
+    target_degrees = abs(distance) * 360 / (WHEEL_DIAMETER * 3.14)
+    accel_dist = target_degrees * max(0.0, min(0.9, accel))# clamp 0..0.9
+    decel_dist = target_degrees * max(0.0, min(0.9, decel))
+
+    # encoder & yaw reset
+    motor.reset_relative_position(LEFT_DRIVE, 0)
+    motor.reset_relative_position(RIGHT_DRIVE, 0)
+
+    if reset == True:
+        motion_sensor.reset_yaw(0)
+
+    # wait until robot motion is stable (optional)
+    # await runloop.until(motion_sensor.stable)
+
+    def progress_deg():
+        a = abs(motor.relative_position(LEFT_DRIVE))
+        b = abs(motor.relative_position(RIGHT_DRIVE))
+        return (a + b) / 2# <-- true average progress
+
+    avg_deg = progress_deg()
+
+    # give it some initial nudge to overcome static friction
+    v_min = max(80, int(0.12 * max_speed))# 12% of max or 80 deg/s, whichever is higher
+
+    while avg_deg < target_degrees:
+        # heading correction from gyro (yaw)
+        error = motion_sensor.tilt_angles()[0]
+        correction = int(error * -2)
+
+        remaining = max(0.0, target_degrees - avg_deg)
+
+        # trapezoid profile factor in [0..1]
+        accel_factor = 1.0 if accel_dist <= 1e-6 else (avg_deg / accel_dist)
+        decel_factor = 1.0 if decel_dist <= 1e-6 else (remaining / decel_dist)
+        shape = min(1.0, accel_factor, decel_factor)
+
+        # target speed with floor (v_min)
+        target_speed = int(v_min + (max_speed - v_min) * shape)
+
+        # apply direction (Spike Prime uses positive=one direction; your code used -*)
+        # Keep your sign convention: multiply by direction and -1 as before.
+        cmd = target_speed * direction * -1
+
+        motor_pair.move_tank(DRIVE_PAIR, cmd - correction, cmd + correction)
+
+        # update progress
+        avg_deg = progress_deg()
+
+    motor_pair.stop(DRIVE_PAIR, stop=end)
+
+    if beep:
+        sound.beep(500)
+
+# Turn the robot by a given number of degrees using only one wheel.
+# angle_deg > 0= turn one direction
+# angle_deg < 0= turn the opposite direction
+# drive_wheel    = "left" or "right"
+async def pivot_turn(angle_deg, drive_wheel="l", *, speed=300, accuracy=2, beep=True):
+    # If no turn requested, just exit
+    if angle_deg == 0:
+        return
+
+    # Choose which motor port to use
+    if drive_wheel.lower() == "l":
+        motor_port = LEFT_DRIVE
+    else:
+        motor_port = RIGHT_DRIVE
+
+    # Reset yaw to 0 so we measure turn from here
+    motion_sensor.reset_yaw(0)
+
+    target_deg = angle_deg
+    direction= 1 if target_deg > 0 else -1
+
+    # Start the chosen wheel turning
+    # NOTE: Depending on your wiring and robot build, you may need to flip the sign.
+    motor.run(motor_port, speed * direction)
+
+    while True:
+        # SPIKE 3 tilt_angles() returns decidegrees; convert to degrees
+        current_deg = motion_sensor.tilt_angles()[0] / 10
+        error = target_deg - current_deg
+
+        # Stop when we're within the desired accuracy
+        if abs(error) <= accuracy:
+            break
+
+        await runloop.sleep_ms(10)
+
+    # Stop the turning wheel
+    motor.stop(motor_port, stop=motor.SMART_BRAKE)
+
+    if beep:
+        sound.beep(1000)
+
+async def main():
+    # (12:24)(16:40)(40:20)(20:12)
+    gearRatio = 12/24*16/40
+    print(gearRatio)
+
+    # 360 degrees = ~2 studs
+    rotate = int(90/gearRatio)
+    print(rotate)
+    rate = 1000
+    lift = 90
+    motion_sensor.reset_yaw(0)
+    yaw = 0
+    turn = 30
+    
+    runloop.run(drive_straight(int(26*2.54),800, reset=False),motor.run_for_degrees(LEFT_ATTACH,-2*(rotate)+30,rate, stop=motor.HOLD))
+    await drive_straight(int(-5*2.54),500)
+    runloop.run(drive_straight(int(7*2.54),500), motor.run_for_degrees(LEFT_ATTACH,rotate,rate, stop=motor.HOLD))
+    await pivot_turn(40,'R', speed=200)
+
+    #await drive_straight(int(6.5*2.54),200)
+    await motor_pair.move_for_time(DRIVE_PAIR,2000,0)
+    await motor.run_for_degrees(RIGHT_ATTACH,lift,500)
+
+    await drive_straight(int(-5.5*2.54),400)
+    await motor.run_for_degrees(LEFT_ATTACH,-1*(rotate+120),rate, stop=motor.HOLD)
+    runloop.sleep_ms(1000)
+    await motor.run_for_degrees(LEFT_ATTACH,rotate,int(rate/2), stop=motor.HOLD)
+    
+    await pivot_turn(-50,'R')
+    await drive_straight(-28*2.54,1000)
+
+'''
+    await drive_straight(int(-4*2.54),400, reset=False)
+    await drive_straight(int(3.25*2.54),400, reset=False)
+    
+    motor.stop(LEFT_ATTACH, stop=motor.COAST)
+    await motor.run_for_degrees(LEFT_ATTACH,rotate,-rate, stop=motor.HOLD)
+    await runloop.sleep_ms(1000)
+    await motor.run_for_degrees(LEFT_ATTACH,rotate,rate, stop=motor.HOLD)
+    await drive_straight(int(7*2.54),600)
+    await motor.run_for_degrees(RIGHT_ATTACH,lift,500)
+    await drive_straight(int(7*2.54)*-1,600)
+    await motor.run_for_degrees(RIGHT_ATTACH,lift,-500)
+    '''
+runloop.run(main())
