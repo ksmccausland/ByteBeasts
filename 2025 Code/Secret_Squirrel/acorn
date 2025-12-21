@@ -133,34 +133,27 @@ async def main():
     yaw = 0
     turn = 30
     
+    # sweeping
     runloop.run(drive_straight(int(26*2.54),800, reset=False),motor.run_for_degrees(LEFT_ATTACH,-2*(rotate)+30,rate, stop=motor.HOLD))
     await drive_straight(int(-5*2.54),500)
-    runloop.run(drive_straight(int(7*2.54),500), motor.run_for_degrees(LEFT_ATTACH,rotate,rate, stop=motor.HOLD))
-    await pivot_turn(40,'R', speed=200)
+    runloop.run(drive_straight(int(7.5*2.54),500), motor.run_for_degrees(LEFT_ATTACH,rotate,rate, stop=motor.HOLD), motor.run_for_degrees(RIGHT_ATTACH,int(lift),600))
 
-    #await drive_straight(int(6.5*2.54),200)
-    await motor_pair.move_for_time(DRIVE_PAIR,2000,0)
+    # deploy flag
+    # await motor.run_for_degrees(RIGHT_ATTACH,int(lift),600)
+    runloop.run(pivot_turn(40,'R', speed=200), motor.run_for_degrees(RIGHT_ATTACH,int(-1*lift),600))
+
+    # interact with 3 plates
+    await motor_pair.move_for_time(DRIVE_PAIR,1500,0, velocity=500)
     await motor.run_for_degrees(RIGHT_ATTACH,lift,500)
+    await drive_straight(int(-4.75*2.54),400)
 
-    await drive_straight(int(-5.5*2.54),400)
+    # pick up fork
     await motor.run_for_degrees(LEFT_ATTACH,-1*(rotate+120),rate, stop=motor.HOLD)
     runloop.sleep_ms(1000)
     await motor.run_for_degrees(LEFT_ATTACH,rotate,int(rate/2), stop=motor.HOLD)
     
+    # return home
     await pivot_turn(-50,'R')
     await drive_straight(-28*2.54,1000)
 
-'''
-    await drive_straight(int(-4*2.54),400, reset=False)
-    await drive_straight(int(3.25*2.54),400, reset=False)
-    
-    motor.stop(LEFT_ATTACH, stop=motor.COAST)
-    await motor.run_for_degrees(LEFT_ATTACH,rotate,-rate, stop=motor.HOLD)
-    await runloop.sleep_ms(1000)
-    await motor.run_for_degrees(LEFT_ATTACH,rotate,rate, stop=motor.HOLD)
-    await drive_straight(int(7*2.54),600)
-    await motor.run_for_degrees(RIGHT_ATTACH,lift,500)
-    await drive_straight(int(7*2.54)*-1,600)
-    await motor.run_for_degrees(RIGHT_ATTACH,lift,-500)
-    '''
 runloop.run(main())
