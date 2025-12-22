@@ -132,14 +132,13 @@ async def main():
     motion_sensor.reset_yaw(0)
     yaw = 0
     turn = 30
-    
+
     # sweeping
     runloop.run(drive_straight(int(26*2.54),800, reset=False),motor.run_for_degrees(LEFT_ATTACH,-2*(rotate)+30,rate, stop=motor.HOLD))
-    await drive_straight(int(-5*2.54),500)
-    runloop.run(drive_straight(int(7.5*2.54),500), motor.run_for_degrees(LEFT_ATTACH,rotate,rate, stop=motor.HOLD), motor.run_for_degrees(RIGHT_ATTACH,int(lift),600))
+    await drive_straight(int(-5.5*2.54),500)
+    runloop.run(drive_straight(int(8*2.54),500), motor.run_for_degrees(LEFT_ATTACH,rotate,rate, stop=motor.HOLD), motor.run_for_degrees(RIGHT_ATTACH,int(lift),600))
 
     # deploy flag
-    # await motor.run_for_degrees(RIGHT_ATTACH,int(lift),600)
     runloop.run(pivot_turn(40,'R', speed=200), motor.run_for_degrees(RIGHT_ATTACH,int(-1*lift),600))
 
     # interact with 3 plates
@@ -151,7 +150,7 @@ async def main():
     await motor.run_for_degrees(LEFT_ATTACH,-1*(rotate+120),rate, stop=motor.HOLD)
     runloop.sleep_ms(1000)
     await motor.run_for_degrees(LEFT_ATTACH,rotate,int(rate/2), stop=motor.HOLD)
-    
+
     # return home
     await pivot_turn(-50,'R')
     await drive_straight(-28*2.54,1000)
