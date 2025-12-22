@@ -1,4 +1,4 @@
-import runloop, motor_pair, motor, color, color_sensor, time
+import runloop, motor_pair, motor, color, color_sensor
 from hub import light, motion_sensor, port, sound, button, light_matrix
 
 WHEEL_DIAMETER = 6.24    # wheel diameter in CM (6.24cm)
@@ -78,19 +78,10 @@ async def drive_straight(distance, speed, *, beep=True, accel=0.25, decel=0.25, 
         sound.beep(500)
 
 # Turn the robot by a given number of degrees using only one wheel.
-# angle_deg > 0 = turn one direction
-# angle_deg < 0 = turn the opposite direction
+# angle_deg > 0= turn one direction
+# angle_deg < 0= turn the opposite direction
 # drive_wheel    = "left" or "right"
-async def pivot_turn(
-        angle_deg,
-        drive_wheel="l",
-        *,
-        speed=300,
-        accuracy=2,
-        beep=True,
-        timeout=5000    # <-- new parameter in ms (0 = no timeout)
-    ):
-
+async def pivot_turn(angle_deg, drive_wheel="l", *, speed=300, accuracy=2, beep=True):
     # If no turn requested, just exit
     if angle_deg == 0:
         return
@@ -105,27 +96,18 @@ async def pivot_turn(
     motion_sensor.reset_yaw(0)
 
     target_deg = angle_deg
-    direction = 1 if target_deg > 0 else -1
+    direction= 1 if target_deg > 0 else -1
 
     # Start the chosen wheel turning
+    # NOTE: Depending on your wiring and robot build, you may need to flip the sign.
     motor.run(motor_port, speed * direction)
 
-    # Track starting time
-    start_ms = time.ticks_ms()
-
     while True:
-
-        # ---- TIMEOUT CHECK ----
-        if timeout > 0:
-            if time.ticks_diff(time.ticks_ms(), start_ms) >= timeout:
-                # Timeout reached — exit loop
-                break
-
-        # SPIKE 3 motion_sensor.tilt_angles()[0] returns decidegrees → convert to degrees
+        # SPIKE 3 tilt_angles() returns decidegrees; convert to degrees
         current_deg = motion_sensor.tilt_angles()[0] / 10
         error = target_deg - current_deg
 
-        # Stop when within the desired accuracy
+        # Stop when we're within the desired accuracy
         if abs(error) <= accuracy:
             break
 
@@ -135,36 +117,43 @@ async def pivot_turn(
     motor.stop(motor_port, stop=motor.SMART_BRAKE)
 
     if beep:
-        sound.beep(2000)
+        sound.beep(1000)
 
 async def main():
-    leftRatio = 1.67
-    rightRatio = 24/12*40/24
-    leftLift = int(leftRatio*33)
-    rightLift = int(83*rightRatio)*-1
-    rightFlip = int(50*rightRatio)*-1
-    motorSpeed = -200
+    # (12:24)(16:40)(40:20)(20:12)
+    gearRatio = 12/24*16/40
+    print(gearRatio)
 
-    # drive from home and turn to minecart
-    runloop.run(drive_straight(40*2.54,1000), motor.run_for_degrees(RIGHT_ATTACH,rightLift*2,500), motor.run_for_degrees(LEFT_ATTACH,int(180*leftRatio),500))
-    await drive_straight(-1.75*2.54,400)
-    await pivot_turn(-88, speed=200)
-    runloop.run(motor.run_for_degrees(LEFT_ATTACH,int(200*leftRatio),-400, stop=motor.COAST), motor.run_for_degrees(RIGHT_ATTACH,-1*rightLift*2,500))
+    # 360 degrees = ~2 studs
+    rotate = int(90/gearRatio)
+    print(rotate)
+    rate = 1000
+    lift = 90
+    motion_sensor.reset_yaw(0)
+    yaw = 0
+    turn = 30
+    
+    # sweeping
+    runloop.run(drive_straight(int(26*2.54),800, reset=False),motor.run_for_degrees(LEFT_ATTACH,-2*(rotate)+30,rate, stop=motor.HOLD))
+    await drive_straight(int(-5*2.54),500)
+    runloop.run(drive_straight(int(7.5*2.54),500), motor.run_for_degrees(LEFT_ATTACH,rotate,rate, stop=motor.HOLD), motor.run_for_degrees(RIGHT_ATTACH,int(lift),600))
 
-    # interact with minecart
-    motor.reset_relative_position(LEFT_ATTACH, 0)
-    await drive_straight(5.5*2.54,200)
-    runloop.run(motor.run_for_degrees(RIGHT_ATTACH,rightLift,200),motor.run_to_relative_position(LEFT_ATTACH,leftLift,200, stop=motor.HOLD))
-    await runloop.sleep_ms(500)
-    runloop.run(motor.run_for_degrees(RIGHT_ATTACH,rightLift*-1,200), drive_straight(-5*2.54,300, reset=False))
+    # deploy flag
+    # await motor.run_for_degrees(RIGHT_ATTACH,int(lift),600)
+    runloop.run(pivot_turn(40,'R', speed=200), motor.run_for_degrees(RIGHT_ATTACH,int(-1*lift),600))
 
-    # navigate to seal
-    runloop.run(pivot_turn(-39.5,'R',speed=150), motor.run_for_degrees(LEFT_ATTACH,180,700))
-    await drive_straight(17*2.54,700)
+    # interact with 3 plates
+    await motor_pair.move_for_time(DRIVE_PAIR,1500,0, velocity=500)
+    await motor.run_for_degrees(RIGHT_ATTACH,lift,500)
+    await drive_straight(int(-4.75*2.54),400)
 
-    # interact with seal
-    runloop.run(motor.run_for_degrees(RIGHT_ATTACH,rightFlip,500), pivot_turn(30,'R',speed=125, timeout=750))
-    await pivot_turn(-30,'R', speed=300)
-
+    # pick up fork
+    await motor.run_for_degrees(LEFT_ATTACH,-1*(rotate+120),rate, stop=motor.HOLD)
+    runloop.sleep_ms(1000)
+    await motor.run_for_degrees(LEFT_ATTACH,rotate,int(rate/2), stop=motor.HOLD)
+    
+    # return home
+    await pivot_turn(-50,'R')
+    await drive_straight(-28*2.54,1000)
 
 runloop.run(main())
