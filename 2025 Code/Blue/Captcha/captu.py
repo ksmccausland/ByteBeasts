@@ -1,0 +1,319 @@
+import os
+import random
+import sys
+import time
+from pathlib import Path
+from typing import List, Dict, Set
+
+import tkinter as tk
+from tkinter import simpledialog, messagebox, ttk
+from PIL import Image, ImageTk
+
+# Google Drive & Sheets
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+
+# ------------------------------
+# Configuration
+# ------------------------------
+DRIVE_FOLDER_ID = "1COuAEYdTY8TiaMuyeOMStDCcO_MYMeOq"
+CACHE_FOLDER = Path("image_cache")
+NUM_IMAGES_TO_SHOW = 10
+GRID_ROWS = 4
+GRID_COLS = 4
+WINDOW_TITLE = "LIDAR Image Selector"
+INSTRUCTION_TEXT = "Click the part of the image with rectangles and circles.\n(Click again to unselect.)"
+SHEET_ID = "1qH1UkwSbK3fituSL7kZjYHJ8gDeSs1wnhy3aGUKFwj8"
+SHEET_TAB = "results"
+
+CANVAS_MAX_W = 900
+CANVAS_MAX_H = 700
+SELECTED_BORDER_COLOR = "#1E90FF"
+SELECTED_BORDER_WIDTH = 3
+UNSELECTED_BORDER_COLOR = "#CCCCCC"
+UNSELECTED_BORDER_WIDTH = 1
+
+SERVICE_ACCOUNT_FILE = "service_account.json"  # Your credentials file
+
+# ------------------------------
+# Google API Setup
+# ------------------------------
+SCOPES = ["https://www.googleapis.com/auth/drive.readonly",
+          "https://www.googleapis.com/auth/spreadsheets"]
+
+creds = service_account.Credentials.from_service_account_file(
+    SERVICE_ACCOUNT_FILE, scopes=SCOPES
+)
+drive_service = build("drive", "v3", credentials=creds)
+sheet_service = build("sheets", "v4", credentials=creds)
+
+CACHE_FOLDER.mkdir(exist_ok=True)
+
+# ------------------------------
+# Utility functions
+# ------------------------------
+
+def list_images_from_drive(folder_id: str) -> List[Dict]:
+    """List image files in a Drive folder."""
+    results = drive_service.files().list(
+        q=f"'{folder_id}' in parents and mimeType contains 'image/' and trashed=false",
+        fields="files(id, name)",
+        pageSize=1000
+    ).execute()
+    return results.get("files", [])
+
+def download_image(file_id: str, filename: str) -> Path:
+    """Download image from Drive to cache folder if not exists."""
+    path = CACHE_FOLDER / filename
+    if path.exists():
+        return path
+
+    request = drive_service.files().get_media(fileId=file_id)
+    with open(path, "wb") as f:
+        downloader = build("drive", "v3", credentials=creds).files().get_media(fileId=file_id)
+        # Using the simple read API
+        f.write(drive_service.files().get_media(fileId=file_id).execute())
+    return path
+
+def ensure_sheet_headers():
+    headers = ["timestamp", "user_id", "age", "image_name"]
+    for i in range(GRID_ROWS * GRID_COLS):
+        headers.append(f"cell_{i}")
+
+    try:
+        sheet_service.spreadsheets().values().update(
+            spreadsheetId=SHEET_ID,
+            range=f"{SHEET_TAB}!A1:{chr(65 + len(headers)-1)}1",
+            valueInputOption="RAW",
+            body={"values": [headers]}
+        ).execute()
+    except Exception as e:
+        print("Error creating headers:", e)
+
+def append_result_to_sheet(user_id: str, age: str, image_path: Path, selected: Set[int]):
+    row = [time.strftime("%Y-%m-%d %H:%M:%S"), user_id, age, image_path.name]
+    total_cells = GRID_ROWS * GRID_COLS
+    for i in range(total_cells):
+        row.append(1 if i in selected else 0)
+    sheet_service.spreadsheets().values().append(
+        spreadsheetId=SHEET_ID,
+        range=SHEET_TAB,
+        valueInputOption="RAW",
+        body={"values": [row]}
+    ).execute()
+
+def load_seen_images() -> Set[str]:
+    path = Path("seen_images.txt")
+    if path.exists():
+        return set(line.strip() for line in path.read_text().splitlines())
+    return set()
+
+def save_seen_images(seen: Set[str]):
+    Path("seen_images.txt").write_text("\n".join(seen))
+
+# ------------------------------
+# GUI Application
+# ------------------------------
+
+class ImageGridSelector(tk.Tk):
+    def __init__(self, images: List[Dict], user_id: str, age: str):
+        super().__init__()
+        self.title(WINDOW_TITLE)
+        self.geometry("1000x800")
+        self.minsize(800, 600)
+        self.bind("<Configure>", self.on_resize)
+
+        self.images = images
+        self.index = 0
+        self.selected_cells: Set[int] = set()
+        self.user_id = user_id
+        self.age = age
+        self.finished = False
+
+        # Progress bar
+        self.progress_var = tk.DoubleVar()
+        self.progress = ttk.Progressbar(self, maximum=len(self.images),
+                                        variable=self.progress_var)
+        self.progress.pack(fill="x", padx=10, pady=5)
+
+        # Instructions
+        self.instruction = tk.Label(self, text=INSTRUCTION_TEXT, font=("Arial", 12))
+        self.instruction.pack(pady=6)
+
+        # Canvas
+        self.canvas = tk.Canvas(self, bg="black", highlightthickness=0)
+        self.canvas.pack(fill="both", expand=True, padx=10, pady=8, anchor="center")
+
+        # Buttons
+        btn_frame = tk.Frame(self)
+        btn_frame.pack(pady=6)
+        self.submit_btn = tk.Button(btn_frame, text="Submit Selection", command=self.on_submit, width=20)
+        self.submit_btn.pack(side=tk.LEFT, padx=8)
+        self.quit_btn = tk.Button(btn_frame, text="Quit", command=self.on_quit, width=10)
+        self.quit_btn.pack(side=tk.LEFT, padx=8)
+
+        self.canvas.bind("<Button-1>", self.on_canvas_click)
+
+        # Image references
+        self.original_img = None
+        self.tk_img = None
+        self.display_w = None
+        self.display_h = None
+        self.offset_x = 0
+        self.offset_y = 0
+
+        # Delay first image display
+        self.after(100, self.show_image)
+
+    def on_resize(self, event):
+        if not self.finished:
+            self.show_image()
+
+    def show_image(self):
+        if self.index >= len(self.images):
+            self.show_finished()
+            return
+
+        self.selected_cells.clear()
+        img_info = self.images[self.index]
+        img_path = download_image(img_info["id"], img_info["name"])
+        self.original_img = Image.open(img_path).convert("RGB")
+
+        can_w = self.canvas.winfo_width()
+        can_h = self.canvas.winfo_height()
+        if can_w < 2 or can_h < 2:
+            self.after(50, self.show_image)
+            return
+
+        img_w, img_h = self.original_img.size
+        scale = min(can_w / img_w, can_h / img_h)
+        disp_w = int(img_w * scale)
+        disp_h = int(img_h * scale)
+
+        self.display_w, self.display_h = disp_w, disp_h
+        self.offset_x = (can_w - disp_w) // 2
+        self.offset_y = (can_h - disp_h) // 2
+
+        resized = self.original_img.resize((disp_w, disp_h), Image.BILINEAR)
+        self.tk_img = ImageTk.PhotoImage(resized)
+        self.canvas.image_ref = self.tk_img
+
+        self.canvas.delete("all")
+        self.canvas.create_image(self.offset_x, self.offset_y, anchor=tk.NW, image=self.tk_img)
+        self.draw_grid()
+        self.progress_var.set(self.index)
+
+        self.title(f"{WINDOW_TITLE} — {img_info['name']} ({self.index+1}/{len(self.images)})")
+
+    def draw_grid(self):
+        cell_w = self.display_w / GRID_COLS
+        cell_h = self.display_h / GRID_ROWS
+        for r in range(GRID_ROWS):
+            for c in range(GRID_COLS):
+                i = r * GRID_COLS + c
+                x1 = self.offset_x + c * cell_w
+                y1 = self.offset_y + r * cell_h
+                x2 = x1 + cell_w
+                y2 = y1 + cell_h
+                self.canvas.create_rectangle(x1, y1, x2, y2,
+                                             outline=UNSELECTED_BORDER_COLOR,
+                                             width=UNSELECTED_BORDER_WIDTH,
+                                             tags=f"cell_{i}")
+        self.redraw_selected_borders()
+
+    def redraw_selected_borders(self):
+        self.canvas.delete("sel_border")
+        cell_w = self.display_w / GRID_COLS
+        cell_h = self.display_h / GRID_ROWS
+        for i in self.selected_cells:
+            r = i // GRID_COLS
+            c = i % GRID_COLS
+            x1 = self.offset_x + c * cell_w
+            y1 = self.offset_y + r * cell_h
+            x2 = x1 + cell_w
+            y2 = y1 + cell_h
+            self.canvas.create_rectangle(x1, y1, x2, y2,
+                                         outline=SELECTED_BORDER_COLOR,
+                                         width=SELECTED_BORDER_WIDTH,
+                                         tags="sel_border")
+
+    def on_canvas_click(self, event):
+        if not (self.offset_x <= event.x <= self.offset_x + self.display_w and
+                self.offset_y <= event.y <= self.offset_y + self.display_h):
+            return
+        rel_x = event.x - self.offset_x
+        rel_y = event.y - self.offset_y
+        c = int(rel_x // (self.display_w / GRID_COLS))
+        r = int(rel_y // (self.display_h / GRID_ROWS))
+        idx = r * GRID_COLS + c
+        if idx in self.selected_cells:
+            self.selected_cells.remove(idx)
+        else:
+            self.selected_cells.add(idx)
+        self.redraw_selected_borders()
+
+    def on_submit(self):
+        img_info = self.images[self.index]
+        img_path = download_image(img_info["id"], img_info["name"])
+        append_result_to_sheet(self.user_id, self.age, img_path, self.selected_cells)
+        seen = load_seen_images()
+        seen.add(img_info["id"])
+        save_seen_images(seen)
+
+        self.index += 1
+        if self.index < len(self.images):
+            self.show_image()
+        else:
+            self.show_finished()
+
+    def show_finished(self):
+        self.finished = True
+        self.canvas.delete("all")
+        self.instruction.config(text="You finished the program!")
+        btn_frame = tk.Frame(self)
+        btn_frame.pack(pady=10)
+        tk.Button(btn_frame, text="Exit", width=10, command=self.destroy).pack(side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="Restart", width=10, command=self.restart_program).pack(side=tk.LEFT, padx=5)
+
+    def restart_program(self):
+        age = simpledialog.askstring("Age", "Please enter your age:")
+        if not age:
+            messagebox.showwarning("Age required", "You must enter your age to continue.")
+            return
+        self.destroy()
+        main(restart_age=age)
+
+    def on_quit(self):
+        if messagebox.askokcancel("Quit", "Are you sure you want to quit?"):
+            self.destroy()
+
+# ------------------------------
+# Main
+# ------------------------------
+
+def main(restart_age=None):
+    ensure_sheet_headers()
+    all_images = list_images_from_drive(DRIVE_FOLDER_ID)
+    if not all_images:
+        messagebox.showerror("Error", "No images found in Drive folder.")
+        return
+
+    seen = load_seen_images()
+    unseen_images = [img for img in all_images if img["id"] not in seen]
+    if len(unseen_images) < NUM_IMAGES_TO_SHOW:
+        unseen_images = all_images  # Reset if not enough unseen
+
+    images_to_show = random.sample(unseen_images, NUM_IMAGES_TO_SHOW)
+
+    user_id = str(int(time.time()))  # simple user ID
+    age = restart_age or simpledialog.askstring("Age", "Please enter your age:")
+    if not age:
+        messagebox.showwarning("Age required", "You must enter your age to continue.")
+        return
+
+    app = ImageGridSelector(images_to_show, user_id, age)
+    app.mainloop()
+
+
+if __name__ == "__main__":
+    main()
