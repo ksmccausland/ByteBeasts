@@ -138,7 +138,7 @@ async def pivot_turn(
         sound.beep(2000)
 
 async def main():
-    leftRatio = 1.67
+    leftRatio = 24/40
     rightRatio = 24/12*40/24
     leftLift = int(leftRatio*33)
     rightLift = int(83*rightRatio)*-1
@@ -146,25 +146,25 @@ async def main():
     motorSpeed = -200
 
     # drive from home and turn to minecart
-    runloop.run(drive_straight(40*2.54,1000), motor.run_for_degrees(RIGHT_ATTACH,rightLift*2,500), motor.run_for_degrees(LEFT_ATTACH,int(180*leftRatio),500))
-    await drive_straight(-1.75*2.54,400)
-    await pivot_turn(-88, speed=200)
-    runloop.run(motor.run_for_degrees(LEFT_ATTACH,int(200*leftRatio),-400, stop=motor.COAST), motor.run_for_degrees(RIGHT_ATTACH,-1*rightLift*2,500))
+    #runloop.run(drive_straight(40*2.54,1000), motor.run_for_degrees(RIGHT_ATTACH,rightLift*2,500), motor.run_for_degrees(LEFT_ATTACH,int(180*leftRatio),500))
+    #await drive_straight(-1.75*2.54,400)
+    #await pivot_turn(-88, speed=200)
+    #runloop.run(motor.run_for_degrees(LEFT_ATTACH,int(200*leftRatio),-400, stop=motor.COAST), motor.run_for_degrees(RIGHT_ATTACH,-1*rightLift*2,500))
 
     # interact with minecart
-    motor.reset_relative_position(LEFT_ATTACH, 0)
-    await drive_straight(5.5*2.54,200)
+    #motor.reset_relative_position(LEFT_ATTACH, 0)
+   # await drive_straight(5.5*2.54,200)
     runloop.run(motor.run_for_degrees(RIGHT_ATTACH,rightLift,200),motor.run_to_relative_position(LEFT_ATTACH,leftLift,200, stop=motor.HOLD))
     await runloop.sleep_ms(500)
     runloop.run(motor.run_for_degrees(RIGHT_ATTACH,rightLift*-1,200), drive_straight(-5*2.54,300, reset=False))
 
     # navigate to seal
-    runloop.run(pivot_turn(-39.5,'R',speed=150), motor.run_for_degrees(LEFT_ATTACH,180,700))
-    await drive_straight(17*2.54,700)
+    #runloop.run(pivot_turn(-39.5,'R',speed=150), motor.run_for_degrees(LEFT_ATTACH,180,700))
+    #await drive_straight(17*2.54,700)
 
     # interact with seal
-    runloop.run(motor.run_for_degrees(RIGHT_ATTACH,rightFlip,500), pivot_turn(30,'R',speed=125, timeout=750))
-    await pivot_turn(-30,'R', speed=300)
+    #runloop.run(motor.run_for_degrees(RIGHT_ATTACH,rightFlip,500), pivot_turn(30,'R',speed=125, timeout=750))
+    #await pivot_turn(-30,'R', speed=300)
 
 
 runloop.run(main())
