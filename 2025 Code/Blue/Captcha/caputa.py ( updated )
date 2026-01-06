@@ -1,0 +1,329 @@
+import random
+import time
+from pathlib import Path
+from typing import List, Dict, Set
+
+import tkinter as tk
+from tkinter import simpledialog, messagebox, ttk
+from PIL import Image, ImageTk
+
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+
+# ------------------------------
+# CONFIGURATION
+# ------------------------------
+DRIVE_FOLDER_ID = "1COuAEYdTY8TiaMuyeOMStDCcO_MYMeOq"
+SERVICE_ACCOUNT_FILE = "service_account.json"
+
+SHEET_ID = "1qH1UkwSbK3fituSL7kZjYHJ8gDeSs1wnhy3aGUKFwj8"
+SHEET_TAB = "results"
+
+CACHE_FOLDER = Path("image_cache")
+CACHE_FOLDER.mkdir(exist_ok=True)
+
+NUM_IMAGES_TO_SHOW = 10
+GRID_ROWS = 4
+GRID_COLS = 4
+
+WINDOW_TITLE = "LIDAR Image Selector"
+INSTRUCTION_TEXT = (
+    "Click the part of the image with ruins.\n"
+    "Note: not all images have ruins.\n"
+    "(Click again to unselect.)"
+)
+
+SELECTED_BORDER_COLOR = "#1E90FF"
+UNSELECTED_BORDER_COLOR = "#CCCCCC"
+
+# ------------------------------
+# GOOGLE API SETUP
+# ------------------------------
+SCOPES = [
+    "https://www.googleapis.com/auth/drive.readonly",
+    "https://www.googleapis.com/auth/spreadsheets"
+]
+
+creds = service_account.Credentials.from_service_account_file(
+    SERVICE_ACCOUNT_FILE, scopes=SCOPES
+)
+
+drive_service = build("drive", "v3", credentials=creds)
+sheet_service = build("sheets", "v4", credentials=creds)
+
+# ------------------------------
+# DRIVE / SHEETS HELPERS
+# ------------------------------
+def list_images_from_drive(folder_id: str) -> List[Dict]:
+    results = drive_service.files().list(
+        q=f"'{folder_id}' in parents and mimeType contains 'image/' and trashed=false",
+        fields="files(id, name)",
+        pageSize=1000
+    ).execute()
+    return results.get("files", [])
+
+def download_image(file_id: str, filename: str) -> Path:
+    path = CACHE_FOLDER / filename
+    if path.exists():
+        return path
+    data = drive_service.files().get_media(fileId=file_id).execute()
+    path.write_bytes(data)
+    return path
+
+def ensure_sheet_headers():
+    headers = ["timestamp", "user_id", "age", "image_name"]
+    for i in range(GRID_ROWS * GRID_COLS):
+        headers.append(f"cell_{i}")
+
+    sheet_service.spreadsheets().values().update(
+        spreadsheetId=SHEET_ID,
+        range=f"{SHEET_TAB}!A1",
+        valueInputOption="RAW",
+        body={"values": [headers]}
+    ).execute()
+
+def append_result(user_id: str, age: str, image_name: str, selected: Set[int]):
+    row = [time.strftime("%Y-%m-%d %H:%M:%S"), user_id, age, image_name]
+    for i in range(GRID_ROWS * GRID_COLS):
+        row.append(1 if i in selected else 0)
+
+    sheet_service.spreadsheets().values().append(
+        spreadsheetId=SHEET_ID,
+        range=SHEET_TAB,
+        valueInputOption="RAW",
+        body={"values": [row]}
+    ).execute()
+
+# ------------------------------
+# SEEN IMAGE TRACKING
+# ------------------------------
+SEEN_FILE = Path("seen_images.txt")
+
+def load_seen_images() -> Set[str]:
+    if SEEN_FILE.exists():
+        return set(SEEN_FILE.read_text().splitlines())
+    return set()
+
+def save_seen_images(seen: Set[str]):
+    SEEN_FILE.write_text("\n".join(seen))
+
+# ------------------------------
+# GUI APPLICATION
+# ------------------------------
+class ImageGridSelector(tk.Tk):
+    def __init__(self, images: List[Dict], user_id: str, age: str):
+        super().__init__()
+        self.title(WINDOW_TITLE)
+        self.geometry("1000x800")
+
+        self.images = images
+        self.index = 0
+        self.selected_cells: Set[int] = set()
+        self.user_id = user_id
+        self.age = age
+        self.finished = False
+
+        self.progress_var = tk.DoubleVar()
+        ttk.Progressbar(
+            self, maximum=len(images), variable=self.progress_var
+        ).pack(fill="x", padx=10, pady=5)
+
+        self.instruction = tk.Label(self, text=INSTRUCTION_TEXT, font=("Arial", 12))
+        self.instruction.pack(pady=6)
+
+        self.canvas = tk.Canvas(self, bg="black", highlightthickness=0)
+        self.canvas.pack(fill="both", expand=True, padx=10, pady=8)
+        self.canvas.bind("<Button-1>", self.on_canvas_click)
+
+        self.btn_frame = tk.Frame(self)
+        self.btn_frame.pack(pady=6)
+
+        self.submit_btn = tk.Button(
+            self.btn_frame, text="Submit Selection",
+            width=20, command=self.on_submit
+        )
+        self.submit_btn.pack(side=tk.LEFT, padx=8)
+
+        self.quit_btn = tk.Button(
+            self.btn_frame, text="Quit",
+            width=10, command=self.destroy
+        )
+        self.quit_btn.pack(side=tk.LEFT, padx=8)
+
+        self.restart_btn = tk.Button(
+            self.btn_frame, text="Restart",
+            width=10, command=self.restart_program
+        )
+        self.exit_btn = tk.Button(
+            self.btn_frame, text="Exit",
+            width=10, command=self.destroy
+        )
+
+        # Image placement state
+        self.display_w = 0
+        self.display_h = 0
+        self.offset_x = 0
+        self.offset_y = 0
+
+        self.after(100, self.show_image)
+
+    # ------------------------------
+    # IMAGE + GRID (FIXED)
+    # ------------------------------
+    def show_image(self):
+        if self.index >= len(self.images):
+            self.show_finished()
+            return
+
+        self.selected_cells.clear()
+        info = self.images[self.index]
+        path = download_image(info["id"], info["name"])
+
+        img = Image.open(path).convert("RGB")
+
+        can_w = self.canvas.winfo_width()
+        can_h = self.canvas.winfo_height()
+        if can_w < 10 or can_h < 10:
+            self.after(50, self.show_image)
+            return
+
+        img_w, img_h = img.size
+        scale = min(can_w / img_w, can_h / img_h)
+        self.display_w = int(img_w * scale)
+        self.display_h = int(img_h * scale)
+
+        self.offset_x = (can_w - self.display_w) // 2
+        self.offset_y = (can_h - self.display_h) // 2
+
+        img = img.resize((self.display_w, self.display_h), Image.BILINEAR)
+        self.tk_img = ImageTk.PhotoImage(img)
+        self.canvas.image_ref = self.tk_img
+
+        self.canvas.delete("all")
+        self.canvas.create_image(
+            self.offset_x, self.offset_y,
+            anchor=tk.NW,
+            image=self.tk_img
+        )
+
+        self.draw_grid()
+        self.progress_var.set(self.index)
+
+    def draw_grid(self):
+        cell_w = self.display_w / GRID_COLS
+        cell_h = self.display_h / GRID_ROWS
+
+        for r in range(GRID_ROWS):
+            for c in range(GRID_COLS):
+                x1 = self.offset_x + c * cell_w
+                y1 = self.offset_y + r * cell_h
+                x2 = x1 + cell_w
+                y2 = y1 + cell_h
+                self.canvas.create_rectangle(
+                    x1, y1, x2, y2,
+                    outline=UNSELECTED_BORDER_COLOR
+                )
+
+        self.redraw_selected_borders()
+
+    def redraw_selected_borders(self):
+        self.canvas.delete("sel_border")
+        cell_w = self.display_w / GRID_COLS
+        cell_h = self.display_h / GRID_ROWS
+
+        for i in self.selected_cells:
+            r = i // GRID_COLS
+            c = i % GRID_COLS
+            x1 = self.offset_x + c * cell_w
+            y1 = self.offset_y + r * cell_h
+            x2 = x1 + cell_w
+            y2 = y1 + cell_h
+            self.canvas.create_rectangle(
+                x1, y1, x2, y2,
+                outline=SELECTED_BORDER_COLOR,
+                width=3,
+                tags="sel_border"
+            )
+
+    def on_canvas_click(self, event):
+        if not (
+            self.offset_x <= event.x <= self.offset_x + self.display_w and
+            self.offset_y <= event.y <= self.offset_y + self.display_h
+        ):
+            return
+
+        rel_x = event.x - self.offset_x
+        rel_y = event.y - self.offset_y
+
+        cell_w = self.display_w / GRID_COLS
+        cell_h = self.display_h / GRID_ROWS
+
+        c = int(rel_x // cell_w)
+        r = int(rel_y // cell_h)
+        idx = r * GRID_COLS + c
+
+        if idx in self.selected_cells:
+            self.selected_cells.remove(idx)
+        else:
+            self.selected_cells.add(idx)
+
+        self.redraw_selected_borders()
+
+    # ------------------------------
+    # FLOW
+    # ------------------------------
+    def on_submit(self):
+        info = self.images[self.index]
+        append_result(self.user_id, self.age, info["name"], self.selected_cells)
+        seen = load_seen_images()
+        seen.add(info["id"])
+        save_seen_images(seen)
+        self.index += 1
+        self.show_image()
+
+    def show_finished(self):
+        self.finished = True
+        self.canvas.delete("all")
+        self.instruction.config(text="You finished the program!")
+
+        self.submit_btn.pack_forget()
+        self.quit_btn.pack_forget()
+
+        self.restart_btn.pack(side=tk.LEFT, padx=8)
+        self.exit_btn.pack(side=tk.LEFT, padx=8)
+
+    def restart_program(self):
+        age = simpledialog.askstring("Age", "Please enter your age:")
+        if not age:
+            return
+        self.destroy()
+        main(restart_age=age)
+
+# ------------------------------
+# MAIN
+# ------------------------------
+def main(restart_age=None):
+    ensure_sheet_headers()
+
+    all_images = list_images_from_drive(DRIVE_FOLDER_ID)
+    if not all_images:
+        messagebox.showerror("Error", "No images found.")
+        return
+
+    seen = load_seen_images()
+    unseen = [img for img in all_images if img["id"] not in seen]
+    if len(unseen) < NUM_IMAGES_TO_SHOW:
+        unseen = all_images
+
+    images = random.sample(unseen, NUM_IMAGES_TO_SHOW)
+
+    age = restart_age or simpledialog.askstring("Age", "Please enter your age:")
+    if not age:
+        return
+
+    user_id = str(int(time.time()))
+    app = ImageGridSelector(images, user_id, age)
+    app.mainloop()
+
+if __name__ == "__main__":
+    main()
