@@ -28,8 +28,7 @@ GRID_COLS = 4
 
 WINDOW_TITLE = "LIDAR Image Selector"
 INSTRUCTION_TEXT = (
-    "Click the part of the image with ruins.\n"
-    "Note: not all images have ruins.\n"
+    "Click the part of the image with ruins; Note not all images have ruins.\n"
     "(Click again to unselect.)"
 )
 
