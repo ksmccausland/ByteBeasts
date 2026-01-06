@@ -22,7 +22,7 @@ NUM_IMAGES_TO_SHOW = 10
 GRID_ROWS = 4
 GRID_COLS = 4
 WINDOW_TITLE = "LIDAR Image Selector"
-INSTRUCTION_TEXT = "Click the part of the image with rectangles and circles.\n(Click again to unselect.)"
+INSTRUCTION_TEXT = "Click the part of the image with ruins; Note that not all images have ruins.\n(Click again to unselect.)"
 SHEET_ID = "1qH1UkwSbK3fituSL7kZjYHJ8gDeSs1wnhy3aGUKFwj8"
 SHEET_TAB = "results"
 
