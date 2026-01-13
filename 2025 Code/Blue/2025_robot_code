@@ -1,4 +1,4 @@
-import runloop, motor_pair, motor, color, color_sensor
+import runloop, motor_pair, motor, color, color_sensor, time
 from hub import light, motion_sensor, port, sound, button, light_matrix
 
 WHEEL_DIAMETER = 6.24    # wheel diameter in CM (6.24cm)
@@ -75,6 +75,66 @@ async def pid_turn(target_angle, *, max_speed=1000, min_speed=50, acceleration=5
     if beep:
         sound.beep(1000)
 
+# Turn the robot by a given number of degrees using only one wheel.
+# angle_deg > 0 = turn one direction
+# angle_deg < 0 = turn the opposite direction
+# drive_wheel    = "left" or "right"
+async def pivot_turn(
+        angle_deg,
+        drive_wheel="l",
+        *,
+        speed=300,
+        accuracy=2,
+        beep=True,
+        timeout=5000    # <-- new parameter in ms (0 = no timeout)
+    ):
+
+    # If no turn requested, just exit
+    if angle_deg == 0:
+        return
+
+    # Choose which motor port to use
+    if drive_wheel.lower() == "l":
+        motor_port = LEFT_DRIVE
+    else:
+        motor_port = RIGHT_DRIVE
+
+    # Reset yaw to 0 so we measure turn from here
+    motion_sensor.reset_yaw(0)
+
+    target_deg = angle_deg
+    direction = 1 if target_deg > 0 else -1
+
+    # Start the chosen wheel turning
+    motor.run(motor_port, speed * direction)
+
+    # Track starting time
+    start_ms = time.ticks_ms()
+
+    while True:
+
+        # ---- TIMEOUT CHECK ----
+        if timeout > 0:
+            if time.ticks_diff(time.ticks_ms(), start_ms) >= timeout:
+                # Timeout reached — exit loop
+                break
+
+        # SPIKE 3 motion_sensor.tilt_angles()[0] returns decidegrees → convert to degrees
+        current_deg = motion_sensor.tilt_angles()[0] / 10
+        error = target_deg - current_deg
+
+        # Stop when within the desired accuracy
+        if abs(error) <= accuracy:
+            break
+
+        await runloop.sleep_ms(10)
+
+    # Stop the turning wheel
+    motor.stop(motor_port, stop=motor.SMART_BRAKE)
+
+    if beep:
+        sound.beep(2000)
+
 # distance (cm), speed (deg/s). Positive distance = forward.
 # accel/decel are distances (as a fraction of total) over which to ramp.
 async def drive_straight(distance, speed, *, beep=True, accel=0.25, decel=0.25, end=motor.HOLD, reset=True):
@@ -150,7 +210,8 @@ async def action_azure():
     await drive_straight(-7,500, beep=True, reset=False)
     await motor.run_for_degrees(RIGHT_ATTACH,-90*deploy,600)
     await drive_straight(20,600, beep=True, reset=False)
-    await runloop.sleep_ms(200)
+    await motor.run_for_degrees(LEFT_ATTACH,int(60*40/24),600)
+    await runloop.sleep_ms(500)
     await drive_straight(-70,1000, beep=True, reset=False)
 
 async def action_black():
@@ -161,7 +222,7 @@ async def action_black():
     await drive_straight(7, 600)
     motor.run(RIGHT_ATTACH,200)
     await pid_turn(10)
-    
+
 
 async def action_blue():
     print("Running BLUE function")
@@ -178,32 +239,79 @@ async def action_blue():
 
 async def action_green():
     print("Running GREEN function")
-    deploy = 80
-    lift = -45
-    stow = deploy+lift
+    leftRatio = 1.67
+    rightRatio = 24/12*40/24
+    leftLift = int(leftRatio*33)
+    rightLift = int(83*rightRatio)*-1
+    rightFlip = int(50*rightRatio)*-1
+    motorSpeed = -200
+    
+    # drive from home and turn to minecart
+    runloop.run(drive_straight(39.5*2.54,1000), motor.run_for_degrees(RIGHT_ATTACH,rightLift*2,500), motor.run_for_degrees(LEFT_ATTACH,int(180*leftRatio),500))
+    await drive_straight(-1.75*2.54,400)
+    await pivot_turn(-88, speed=200)
+    runloop.run(motor.run_for_degrees(LEFT_ATTACH,int(200*leftRatio),-400, stop=motor.COAST), motor.run_for_degrees(RIGHT_ATTACH,-1*rightLift*2,500))
 
-    await drive_straight(-80, 900)
-    await pid_turn(-90)
-    runloop.run(drive_straight(-16,500),motor.run_for_degrees(LEFT_ATTACH,deploy*13, 500))
-    await pid_turn(90)
-    await drive_straight(-14,500)
-    await motor.run_for_degrees(LEFT_ATTACH,lift*13, 500)
-    await runloop.sleep_ms(1000)
-    await pid_turn(-25)
-    runloop.run(drive_straight(90,1000), motor.run_for_degrees(LEFT_ATTACH,-stow*13, 500))
+    # interact with minecart
+    motor.reset_relative_position(LEFT_ATTACH, 0)
+    await drive_straight(5.5*2.54,200)
+    runloop.run(motor.run_for_degrees(RIGHT_ATTACH,rightLift,200),motor.run_to_relative_position(LEFT_ATTACH,leftLift,200, stop=motor.HOLD))
+    await runloop.sleep_ms(500)
+    runloop.run(motor.run_for_degrees(RIGHT_ATTACH,rightLift*-1,200), drive_straight(-5*2.54,300, reset=False))
+
+    # navigate to seal
+    runloop.run(pivot_turn(-39,'R',speed=150), motor.run_for_degrees(LEFT_ATTACH,180,700))
+    await drive_straight(17*2.54,700)
+
+    # interact with seal
+    runloop.run(motor.run_for_degrees(RIGHT_ATTACH,rightFlip,500), pivot_turn(30,'R',speed=125, timeout=750))
+    await pivot_turn(-30,'R', speed=300)
+    
+    # get home
+    await drive_straight(-10,600)
+    await pivot_turn(-100,'l')
+    await drive_straight(20,700)
+    await pivot_turn(60,'r')
+    await drive_straight(45,1000)
 
 async def action_red():
     print("Running RED function")
-    deploy = -90
+    
+    # (12:24)(16:40)(40:20)(20:12)
+    gearRatio = 12/24*16/40
+    print(gearRatio)
 
-    await drive_straight(-5, 300)
-    runloop.run(drive_straight(65,1000, beep=True), motor.run_for_degrees(LEFT_ATTACH,deploy,600,stop=motor.HOLD)) 
-    await drive_straight(-20,400, beep=True, reset=False)
-    await motor.run_for_degrees(LEFT_ATTACH,-deploy-10,600,stop=motor.HOLD)
-    await drive_straight(12,300, beep=True, reset=False)
-    await runloop.sleep_ms (500)
-    await motor.run_for_degrees(LEFT_ATTACH,-60,600,stop=motor.HOLD)
-    await drive_straight(-50,1000, beep=True)
+    # 360 degrees = ~2 studs
+    rotate = int(90/gearRatio)
+    print(rotate)
+    rate = 1000
+    lift = 90
+    motion_sensor.reset_yaw(0)
+    yaw = 0
+    turn = 30
+
+    # sweeping
+    # runloop.run(drive_straight(int(26*2.54),800, reset=False),motor.run_for_degrees(LEFT_ATTACH,-2*(rotate)+30,rate, stop=motor.HOLD))
+    await drive_straight(int(26*2.54),800, reset=False)
+    await drive_straight(int(-5.5*2.54),500)
+    runloop.run(drive_straight(int(8*2.54),500), motor.run_for_degrees(LEFT_ATTACH,rotate,rate, stop=motor.HOLD), motor.run_for_degrees(RIGHT_ATTACH,int(lift),600))
+
+    # deploy flag
+    runloop.run(pivot_turn(40,'R', speed=200), motor.run_for_degrees(RIGHT_ATTACH,int(-1*lift),600))
+
+    # interact with 3 plates
+    await motor_pair.move_for_time(DRIVE_PAIR,1500,0, velocity=300)
+    await motor.run_for_degrees(RIGHT_ATTACH,lift,500)
+    await drive_straight(int(-4.75*2.54),400)
+
+    # pick up fork
+    await motor.run_for_degrees(LEFT_ATTACH,-1*(rotate+120),rate, stop=motor.HOLD)
+    runloop.sleep_ms(1000)
+    await motor.run_for_degrees(LEFT_ATTACH,rotate,int(rate/2), stop=motor.HOLD)
+
+    # return home
+    await pivot_turn(-50,'R')
+    await drive_straight(-28*2.54,1000)
 
 async def action_white():
     print("Running WHITE function")
@@ -234,13 +342,13 @@ async def action_yellow():
     await motor.run_for_degrees(LEFT_ATTACH,deploy,1000)
     await runloop.sleep_ms(pause)
     await motor.run_for_degrees(LEFT_ATTACH,-1*(deploy),200)
-    
+
     for i in range(3):
         await motor.run_for_degrees(LEFT_ATTACH,1*(deploy),1000)
         await runloop.sleep_ms(pause)
         await motor.run_for_degrees(LEFT_ATTACH,-1*(deploy),200)
         await runloop.sleep_ms(pause)
-    
+
     runloop.run(drive_straight(27,500), motor.run_for_degrees(RIGHT_ATTACH, -deployArm,500))
     await runloop.sleep_ms(1000)
     await pid_turn(90)
@@ -252,11 +360,11 @@ async def action_yellow():
 color_actions = {
     color.AZURE:    ('Az', action_azure),
     color.BLACK:    ('Ba', action_black),
-    color.BLUE:     ('Bu', action_blue),
+    color.BLUE:    ('Bu', action_blue),
     color.GREEN:    ('Gr', action_green),
-    color.RED:      ('Re', action_red),
+    color.RED:    ('Re', action_red),
     color.WHITE:    ('Wh', action_white),
-    color.YELLOW:   ('Ye', action_yellow)
+    color.YELLOW:('Ye', action_yellow)
 }
 
 # --- Main loop ---
