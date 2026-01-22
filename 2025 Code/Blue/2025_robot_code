@@ -250,6 +250,7 @@ async def action_blue():
     await pid_turn(-30)
     await drive_straight(-40, 1000)
     await pid_turn(-60)
+    await drive_straight(20,1000)
 
 async def action_green():
     print("Running GREEN function")
