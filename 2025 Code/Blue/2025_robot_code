@@ -236,7 +236,6 @@ async def action_black():
 
     #drive home
     await pivot_turn(-70,'l')
-    await runloop.sleep_ms(4000)
     await drive_straight(125,800)
     
 async def action_blue():
