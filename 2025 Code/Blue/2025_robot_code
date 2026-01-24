@@ -216,36 +216,37 @@ async def action_azure():
 
 async def action_black():
     print("Running BLACK function")
-    
-    motor.run(RIGHT_ATTACH,200)
+
+    # drive to angler
+    motor.run(RIGHT_ATTACH,300)
     await drive_straight(82, 800)
     await pivot_turn(90,'r')
     await drive_straight(3, 300)
     await pivot_turn(10,'r')
     await motor.run_for_time(RIGHT_ATTACH, 3000, 700)
     await pid_turn(-10)
-    
+
     #drive to bucket
     await drive_straight(-5,500)
     await pivot_turn(-45,'r',speed=150)
     await pivot_turn(45,'l',speed=150)
     await drive_straight(-10,500)
-    
-    #interact with 
+
+    #interact with
     await motor.run_for_degrees(LEFT_ATTACH,-100,500)
 
     #drive home
-    await pivot_turn(-70,'l')
+    await pivot_turn(-68,'l')
     await drive_straight(125,800)
-    
+
 async def action_blue():
     print("Running BLUE function")
 
     await drive_straight(37, 900)
     await motor.run_for_degrees(RIGHT_ATTACH, -640, 1000)
-    await motor.run_for_degrees(LEFT_ATTACH, 120, 1000)
+    await motor.run_for_degrees(LEFT_ATTACH, 130, 1000)
     await runloop.sleep_ms(1000)
-    runloop.run(motor.run_for_degrees(RIGHT_ATTACH, 700, 1000), drive_straight(-20, 600))
+    runloop.run(motor.run_for_degrees(RIGHT_ATTACH, 700, 1000), drive_straight(-24, 600))
     await drive_straight(7, 600)
     await pid_turn(-30)
     await drive_straight(-40, 1000)
@@ -258,7 +259,7 @@ async def action_green():
     rightRatio = 24/12*40/24
     leftLift = int(leftRatio*33)
     rightLift = int(83*rightRatio)*-1
-    rightFlip = int(50*rightRatio)*-1
+    rightFlip = int(45*rightRatio)*-1
     motorSpeed = -200
 
     # drive from home and turn to minecart
@@ -279,15 +280,15 @@ async def action_green():
     await drive_straight(17*2.54,700)
 
     # interact with seal
-    runloop.run(motor.run_for_degrees(RIGHT_ATTACH,rightFlip,500), pivot_turn(30,'R',speed=125, timeout=750))
+    runloop.run(motor.run_for_degrees(RIGHT_ATTACH,rightFlip,500), pivot_turn(55,'R',speed=125, timeout=750))
     await pivot_turn(-30,'R', speed=300)
 
     # get home
-    await drive_straight(-10,600)
+    await drive_straight(-15,600)
     await pivot_turn(-100,'l')
     await drive_straight(20,700)
     await pivot_turn(60,'r')
-    await drive_straight(45,1000)
+    await drive_straight(47,1000)
 
 async def action_red():
     print("Running RED function")
@@ -353,17 +354,17 @@ async def action_yellow():
 
     await drive_straight(-3,300)
     await drive_straight(50,750)
-    
+
     await motor.run_for_degrees(LEFT_ATTACH,deploy,1000)
     await runloop.sleep_ms(pause)
     await motor.run_for_degrees(LEFT_ATTACH,-1*(deploy),300)
-    
+
     for i in range(3):
         await motor.run_for_degrees(LEFT_ATTACH,1*(deploy),1000)
         await runloop.sleep_ms(pause)
         await motor.run_for_degrees(LEFT_ATTACH,-1*(deploy),300)
         await runloop.sleep_ms(pause)
-    
+
     runloop.sleep_ms(500)
 
     runloop.run(drive_straight(28,500), motor.run_for_degrees(RIGHT_ATTACH, -deployArm,500))
