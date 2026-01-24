@@ -280,14 +280,16 @@ async def action_green():
     await drive_straight(17*2.54,700)
 
     # interact with seal
-    runloop.run(motor.run_for_degrees(RIGHT_ATTACH,rightFlip,500), pivot_turn(70,'R',speed=125, timeout=750))
+    await pivot_turn(55,'R',speed=125, timeout=750)
+    await motor.run_for_degrees(RIGHT_ATTACH,rightFlip,500)
+    
     await pivot_turn(-30,'R', speed=300)
 
     # get home
     await drive_straight(-20,600)
     await pivot_turn(-100,'l')
     await drive_straight(20,700)
-    await pivot_turn(60,'r')
+    await pivot_turn(55,'r')
     await drive_straight(47,1000)
 
 async def action_red():
