@@ -361,7 +361,7 @@ async def action_yellow():
     await runloop.sleep_ms(pause)
     await motor.run_for_degrees(LEFT_ATTACH,-1*(deploy),300)
 
-    for i in range(3):
+    for i in range(2):
         await motor.run_for_degrees(LEFT_ATTACH,1*(deploy),1000)
         await runloop.sleep_ms(pause)
         await motor.run_for_degrees(LEFT_ATTACH,-1*(deploy),300)
@@ -372,9 +372,9 @@ async def action_yellow():
     runloop.run(drive_straight(28,500), motor.run_for_degrees(RIGHT_ATTACH, -deployArm,500))
     await pivot_turn(90,'r', timeout=1500)
 
-    await drive_straight(-7.5,500)
-    await pivot_turn(135,"r")
-    await drive_straight(60, 1000)
+    #await drive_straight(-7.5,500)
+    ##await pivot_turn(135,"r")
+   #await drive_straight(60, 1000)
 
 # --- Color lookup table (color -> (number, function)) ---
 color_actions = {
