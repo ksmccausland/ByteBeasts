@@ -264,7 +264,7 @@ async def action_green():
 
     # drive from home and turn to minecart
     runloop.run(drive_straight(39.5*2.54,1000), motor.run_for_degrees(RIGHT_ATTACH,rightLift*2,500), motor.run_for_degrees(LEFT_ATTACH,int(180*leftRatio),500))
-    await drive_straight(-1.75*2.54,400)
+    await drive_straight(-1*2.54,400)
     await pivot_turn(-88, speed=200)
     runloop.run(motor.run_for_degrees(LEFT_ATTACH,int(200*leftRatio),-400, stop=motor.COAST), motor.run_for_degrees(RIGHT_ATTACH,-1*rightLift*2,500))
     await runloop.sleep_ms(500)
@@ -282,7 +282,7 @@ async def action_green():
     # interact with seal
     await pivot_turn(55,'R',speed=125, timeout=750)
     await motor.run_for_degrees(RIGHT_ATTACH,rightFlip,500)
-    
+
     await pivot_turn(-30,'R', speed=300)
 
     # get home
