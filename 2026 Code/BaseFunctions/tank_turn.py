@@ -1,5 +1,5 @@
-import runloop, motor_pair
-from hub import motion_sensor, port
+import runloop, motor_pair, time
+from hub import motion_sensor, port, sound
 
 LEFT_DRIVE = port.A
 RIGHT_DRIVE = port.B
@@ -8,14 +8,15 @@ motor_pair.pair(motor_pair.PAIR_1, LEFT_DRIVE, RIGHT_DRIVE)
 DRIVE_PAIR = motor_pair.PAIR_1
 
 
-async def proportional_turn(
+async def tank_turn(
     target_angle,
     *,
     max_speed=1000,
     acceleration=500,
     kp=0.7,
     accuracy=2,
-    beep=True
+    beep=True,
+    timeout_ms=5000
 ):
     # Convert degrees to decidegrees
     target_angle *= 10
@@ -23,6 +24,9 @@ async def proportional_turn(
 
     # Reset heading
     motion_sensor.reset_yaw(0)
+
+    # Start timeout timer
+    start_time = time.ticks_ms()
 
     try:
         while True:
@@ -36,11 +40,23 @@ async def proportional_turn(
             if abs(error) <= accuracy:
                 break
 
+            # Check timeout
+            if timeout_ms is not None:
+                elapsed_time = time.ticks_diff(
+                    time.ticks_ms(), start_time
+                )
+
+                if elapsed_time >= timeout_ms:
+                    print("TURN TIMEOUT!")
+                    break
+
             # Proportional correction only
             correction = kp * error
 
             # Limit motor speed
-            correction = max(-max_speed, min(max_speed, correction))
+            correction = max(
+                -max_speed, min(max_speed, correction)
+            )
 
             # Turn robot
             motor_pair.move_tank(
