@@ -14,7 +14,8 @@ async def proportional_turn(
     max_speed=1000,
     acceleration=500,
     kp=0.7,
-    accuracy=2
+    accuracy=2,
+    beep=True
 ):
     # Convert degrees to decidegrees
     target_angle *= 10
@@ -62,3 +63,6 @@ async def proportional_turn(
 
     finally:
         motor_pair.stop(DRIVE_PAIR)
+
+        if beep:
+            sound.beep(2000)
