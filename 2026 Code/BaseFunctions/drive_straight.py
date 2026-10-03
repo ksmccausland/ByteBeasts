@@ -21,6 +21,7 @@ async def drive_straight_p(
     acceleration=2000,
     kp=1.2,
     use_timeout=False,
+    beep=True,
     timeout_ms=5000
 ):
     if distance_in == 0:
@@ -87,6 +88,9 @@ async def drive_straight_p(
 
     finally:
         motor_pair.stop(DRIVE_PAIR)
+
+        if beep:
+            sound.beep(1000)
 
 
 async def main():
