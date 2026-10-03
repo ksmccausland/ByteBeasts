@@ -14,7 +14,7 @@ motor_pair.pair(motor_pair.PAIR_1, LEFT_DRIVE, RIGHT_DRIVE)
 DRIVE_PAIR = motor_pair.PAIR_1
 
 
-async def drive_straight_p(
+async def drive_straight(
     distance_in,
     speed=400,
     *,
@@ -94,7 +94,7 @@ async def drive_straight_p(
 
 
 async def main():
-    await drive_straight_p(
+    await drive_straight(
         20,
         500,
         use_timeout=True,
