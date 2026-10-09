@@ -1,4 +1,4 @@
-from hub import port, motion_sensor
+from hub import port, motion_sensor,sound
 import runloop
 import motor_pair
 import motor
