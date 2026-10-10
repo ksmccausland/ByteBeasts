@@ -4,7 +4,7 @@ import motor_pair
 import motor
 import time
 
-WHEEL_DIAMETER_IN = 6 / 2.54
+WHEEL_DIAMETER_IN = 6.5 / 2.54
 MOTOR_INVERT = -1
 MAX_SPEED = 1050
 LEFT_DRIVE = port.A
