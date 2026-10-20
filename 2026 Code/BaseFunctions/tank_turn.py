@@ -9,14 +9,14 @@ DRIVE_PAIR = motor_pair.PAIR_1
 
 
 async def tank_turn(
-    target_angle,
+    target_angle,        # number of degress to turn the robot
     *,
-    max_speed=1000,
-    acceleration=500,
-    kp=0.7,
-    accuracy=2,
-    beep=True,
-    timeout_ms=5000
+    min_speed=100,       # Minimum speed to overcome friction (0-1000 scale)
+    acceleration=500,    # how fast robot will accelerate
+    kp=2.5,              # correction strength: higher number means robot will correct more strongly (change only for heavy attachments)
+    accuracy=2,          # how close to target angle is acceptable
+    beep=True,           # if True robot will beep when function has completed
+    timeout_ms=5000      # how long the function has to run in milliseconds
 ):
     # Convert degrees to decidegrees
     target_angle *= 10
@@ -40,8 +40,8 @@ async def tank_turn(
             if abs(error) <= accuracy:
                 break
 
-            # Check timeout
-            if timeout_ms is not None:
+            # Check timeout only if timeout_ms is provided and not 0
+            if timeout_ms > 0:
                 elapsed_time = time.ticks_diff(
                     time.ticks_ms(), start_time
                 )
@@ -50,12 +50,18 @@ async def tank_turn(
                     print("TURN TIMEOUT!")
                     break
 
-            # Proportional correction only
+            # Calculate proportional correction
             correction = kp * error
+
+            # Inject minimum speed so the motors actually turn
+            if correction > 0:
+                correction = max(min_speed, correction)
+            elif correction < 0:
+                correction = min(-min_speed, correction)
 
             # Limit motor speed
             correction = max(
-                -max_speed, min(max_speed, correction)
+                -MAX_SPEED, min(MAX_SPEED, correction)
             )
 
             # Turn robot
