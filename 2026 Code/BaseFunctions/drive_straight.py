@@ -15,14 +15,13 @@ DRIVE_PAIR = motor_pair.PAIR_1
 
 
 async def drive_straight(
-    distance_in,
-    speed=400,
-    *,
-    acceleration=2000,
-    kp=1.2,
-    use_timeout=False,
-    beep=True,
-    timeout_ms=5000
+    distance_in,          # distance to drive in inches
+    speed=400,            # speed of robot **NOTE max speed is 1050
+    *,                    # optional values
+    acceleration=2000,    # how fast robot will accelerate
+    kp=1.2,               # correction strength: higher number means robot will correct more strongly (change only for heavy attachments)
+    beep=True,            # robot will beep when function has completed
+    timeout_ms=0          # Set to 0 to disable the timeout completely
 ):
     if distance_in == 0:
         motor_pair.stop(DRIVE_PAIR)
@@ -49,13 +48,13 @@ async def drive_straight(
     try:
         # loop until distance is travelled
         while current_deg < total_deg:
-            # timeout checking
-            if use_timeout:
+            # Check timeout only if timeout_ms is provided and not 0
+            if timeout_ms and timeout_ms > 0:
                 elapsed_time = time.ticks_diff(
                     time.ticks_ms(), start_time
                 )
                 if elapsed_time >= timeout_ms:
-                    print("TIMEOUT!")
+                    print("DRIVE TIMEOUT!")
                     break
 
             # Yaw is measured in tenths of a degree
@@ -94,12 +93,7 @@ async def drive_straight(
 
 
 async def main():
-    await drive_straight(
-        20,
-        500,
-        use_timeout=True,
-        timeout_ms=5000
-    )
+    await drive_straight(20,500,timeout_ms=5000)
 
 
 runloop.run(main())
