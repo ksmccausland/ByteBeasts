@@ -93,7 +93,7 @@ async def pivot_turn(
     *,
     min_speed=200,       # Minimum speed to overcome friction (0-1000 scale)
     acceleration=500,    # how fast robot will accelerate
-    kp=0.7,              # correction strength: higher number means robot will correct more strongly (change only for heavy attachments)
+    kp=2.5,              # correction strength: higher number means robot will correct more strongly (change only for heavy attachments)
     accuracy=2,          # how close to target angle is acceptable
     beep=True,           # if True robot will beep when function has completed
     timeout_ms=5000      # how long the function has to run in milliseconds
