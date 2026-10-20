@@ -6,6 +6,8 @@ MOTOR_INVERT = -1                     # use to invert motors if positve drive di
 MAX_SPEED = 1050                      # max speed of the robot (DO NOT CHANGE)
 LEFT_DRIVE = port.A                   # port of left drive motor
 RIGHT_DRIVE = port.C                  # port of right drive motor
+LEFT_ATTACH = port.B                  # port of left attachment motor
+RIGHT_ATTACH = port.D                 # port of right attachment motor
 
 motor_pair.pair(motor_pair.PAIR_1, LEFT_DRIVE, RIGHT_DRIVE)
 DRIVE_PAIR = motor_pair.PAIR_1
@@ -262,9 +264,10 @@ async def tank_turn(
             sound.beep(2000)
 
 async def main():
-  # your function goes here
-  await drive_straight('distance in inches', 'speed (1050=max)')
-  await tank_turn('degrees to turn')
-  await runloop.run(drive_straight(distance, speed), motor.run_for_degrees('motor to spin', 'rotate', 'rate'))
+  # base example function
+  await drive_straight(20, 500)
+  await tank_turn(180)
+  await runloop.run(drive_straight(20, 500), motor.run_for_degrees(LEFT_ATTACH, 1080, 500))
+  await pivot_turn(180,'l')
 
 runloop.run(main())
