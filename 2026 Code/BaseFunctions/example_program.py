@@ -1,25 +1,23 @@
 import runloop, motor_pair, motor, color, color_sensor
 from hub import light, motion_sensor, port, sound, button, light_matrix
 
-WHEEL_DIAMETER_IN = 5.6 / 2.54
-MOTOR_INVERT = -1
-MAX_SPEED = 1050
-LEFT_DRIVE = port.A
-RIGHT_DRIVE = port.C
+WHEEL_DIAMETER_IN = 5.6 / 2.54        # diameter of wheels in measured in inches
+MOTOR_INVERT = -1                     # use to invert motors if positve drive directions do no result in forward motion
+MAX_SPEED = 1050                      # max speed of the robot (DO NOT CHANGE)
+LEFT_DRIVE = port.A                   # port of left drive motor
+RIGHT_DRIVE = port.C                  # port of right drive motor
 
 motor_pair.pair(motor_pair.PAIR_1, LEFT_DRIVE, RIGHT_DRIVE)
 DRIVE_PAIR = motor_pair.PAIR_1
 
-# 
 async def drive_straight(
-    distance_in,
-    speed=400,
-    *,
-    acceleration=2000,
-    kp=1.2,
-    use_timeout=False,
-    beep=True,
-    timeout_ms=5000
+    distance_in,          # distance to drive in inches
+    speed=400,            # speed of robot **NOTE max speed is 1050
+    *,                    # optional values
+    acceleration=2000,    # how fast robot will accelerate
+    kp=1.2,               # correction strength: higher number means robot will correct more strongly (change only for heavy attachments)
+    beep=True,            # robot will beep when function has completed
+    timeout_ms=0          # Set to 0 to disable the timeout completely
 ):
     if distance_in == 0:
         motor_pair.stop(DRIVE_PAIR)
@@ -46,13 +44,13 @@ async def drive_straight(
     try:
         # loop until distance is travelled
         while current_deg < total_deg:
-            # timeout checking
-            if use_timeout:
+            # Check timeout only if timeout_ms is provided and not 0
+            if timeout_ms and timeout_ms > 0:
                 elapsed_time = time.ticks_diff(
                     time.ticks_ms(), start_time
                 )
                 if elapsed_time >= timeout_ms:
-                    print("TIMEOUT!")
+                    print("DRIVE TIMEOUT!")
                     break
 
             # Yaw is measured in tenths of a degree
@@ -90,15 +88,15 @@ async def drive_straight(
             sound.beep(1000)
 
 async def pivot_turn(
-    target_angle,
-    drive_wheel="l",      # select which wheel will turn, either "l" or "r"
+    target_angle,        # number of degrees to turn
+    drive_wheel="l",     # select which wheel will be driven, either "l" or "r"
     *,
-    max_speed=1000,
-    acceleration=500,
-    kp=0.7,
-    accuracy=2,
-    beep=True,
-    timeout_ms=5000
+    min_speed=200,       # Minimum speed to overcome friction (0-1000 scale)
+    acceleration=500,    # how fast robot will accelerate
+    kp=0.7,              # correction strength: higher number means robot will correct more strongly (change only for heavy attachments)
+    accuracy=2,          # how close to target angle is acceptable
+    beep=True,           # if True robot will beep when function has completed
+    timeout_ms=5000      # how long the function has to run in milliseconds
 ):
     drive_wheel = drive_wheel.lower()
     if drive_wheel not in ("l", "r"):
@@ -136,12 +134,18 @@ async def pivot_turn(
                     print("PIVOT TIMEOUT!")
                     break
 
-            # Proportional correction only
+            # Calculate Proportional correction
             correction = kp * error
 
-            # Limit motor speed
+            # NEW: Inject minimum speed so the motors actually turn
+            if correction > 0:
+                correction = max(min_speed, correction)
+            elif correction < 0:
+                correction = min(-min_speed, correction)
+
+            # Limit motor speed to maximum allowed
             correction = max(
-                -max_speed, min(max_speed, correction)
+                -MAX_SPEED, min(MAX_SPEED, correction)
             )
 
             # Use the same turn direction as tank_turn
@@ -177,14 +181,14 @@ async def pivot_turn(
             sound.beep(3000)
 
 async def tank_turn(
-    target_angle,
+    target_angle,        # number of degress to turn the robot
     *,
-    max_speed=1000,
-    acceleration=500,
-    kp=0.7,
-    accuracy=2,
-    beep=True,
-    timeout_ms=5000
+    min_speed=100,       # Minimum speed to overcome friction (0-1000 scale)
+    acceleration=500,    # how fast robot will accelerate
+    kp=2.5,              # correction strength: higher number means robot will correct more strongly (change only for heavy attachments)
+    accuracy=2,          # how close to target angle is acceptable
+    beep=True,           # if True robot will beep when function has completed
+    timeout_ms=5000      # how long the function has to run in milliseconds
 ):
     # Convert degrees to decidegrees
     target_angle *= 10
@@ -208,8 +212,8 @@ async def tank_turn(
             if abs(error) <= accuracy:
                 break
 
-            # Check timeout
-            if timeout_ms is not None:
+            # Check timeout only if timeout_ms is provided and not 0
+            if timeout_ms > 0:
                 elapsed_time = time.ticks_diff(
                     time.ticks_ms(), start_time
                 )
@@ -218,12 +222,18 @@ async def tank_turn(
                     print("TURN TIMEOUT!")
                     break
 
-            # Proportional correction only
+            # Calculate proportional correction
             correction = kp * error
+
+            # Inject minimum speed so the motors actually turn
+            if correction > 0:
+                correction = max(min_speed, correction)
+            elif correction < 0:
+                correction = min(-min_speed, correction)
 
             # Limit motor speed
             correction = max(
-                -max_speed, min(max_speed, correction)
+                -MAX_SPEED, min(MAX_SPEED, correction)
             )
 
             # Turn robot
