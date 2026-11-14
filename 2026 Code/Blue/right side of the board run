@@ -95,7 +95,7 @@ async def pivot_turn(
     *,
     min_speed=200,    # Minimum speed to overcome friction (0-1000 scale)
     acceleration=500,    # how fast robot will accelerate
-    kp=2.5,            # correction strength: higher number means robot will correct more strongly (change only for heavy attachments)
+    kp=1.5,            # correction strength: higher number means robot will correct more strongly (change only for heavy attachments)
     accuracy=2,        # how close to target angle is acceptable
     beep=True,        # if True robot will beep when function has completed
     timeout_ms=5000    # how long the function has to run in milliseconds
@@ -267,13 +267,18 @@ async def main():
 # base example function
 # base example function
     await drive_straight(-0.5,500)
-    runloop.run(drive_straight(28, 500),motor.run_for_degrees(LEFT_ATTACH,360,300))
+    await drive_straight(23, 500)
     runloop.sleep_ms(1000)
-    await motor.run_for_degrees(LEFT_ATTACH,130,300)
+    await pivot_turn(-26,"L")
     runloop.sleep_ms(1000)
-    await drive_straight(-5, 500)
+    await drive_straight(2,300)
+    await motor.run_for_degrees(RIGHT_ATTACH,180,300)
     runloop.sleep_ms(1000)
-    await motor.run_for_degrees(LEFT_ATTACH,-430,300)
-    await drive_straight(-20, 500)
-
+    await pivot_turn(-30,"l")
+    await motor.run_for_degrees(RIGHT_ATTACH,-240,300)
+    await drive_straight(1,200)
+    await pivot_turn(10,"l")
+    await drive_straight(1,200)
+    runloop.run(pivot_turn(-20,"l"),motor.run_for_degrees(RIGHT_ATTACH,70,300))
+    await drive_straight(-10,300)
 runloop.run(main())
