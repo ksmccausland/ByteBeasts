@@ -13,7 +13,7 @@ Written with Claude Code on 2026-11-15, against commit `e617a21`. Line numbers a
 | 1 | Add `import time` to `example_program.py` | Crash | Anyone starting a new mission from the example | No |
 | 2 | Fix or delete the three standalone files | Crash | Anyone running them on their own | No |
 | 3 | Give `timeout_ms` one meaning | Inconsistent | No current mission (only shows with `0` or `None` on a turn) | No |
-| 4 | Make `MOTOR_INVERT` safe to change | Wrong behaviour | Robots with `MOTOR_INVERT = 1` (Katydid has it) | Yes |
+| 4 | Make `MOTOR_INVERT` safe to change | Wrong behaviour | Any robot whose `MOTOR_INVERT` doesn't match its hub's yaw direction; check Katydid (`MOTOR_INVERT = 1`) | Yes |
 | 5 | Settle the wheel diameter for each robot | Team decision | `drive_straight.py` and Katydid use 6.5 cm, the rest 5.6 cm | Yes |
 | 6 | Keep full steering strength at high speed | Improvement | Drives at or near `MAX_SPEED` | Yes |
 | 7 | Stop pasting the functions by hand | Structure | Anyone who fixes a function: there are up to 7 copies | No |
@@ -39,7 +39,7 @@ Suggested order: items 1 and 3 now (they change nothing for a mission that works
 
 | File | What happens when it runs alone | Cause |
 |---|---|---|
-| `tank_turn.py` | `NameError: name 'MAX_SPEED' is not defined` on the first pass through the loop (line 64), even with `beep=False` | `MAX_SPEED` is never defined. The file also pairs `port.A` with `port.B` (line 5), and `LEFT_ATTACH = port.B` in the example, so the wrong motor would be driven |
+| `tank_turn.py` | `NameError: name 'MAX_SPEED' is not defined` on the first pass through the loop (line 64), even with `beep=False` | `MAX_SPEED` is never defined. Line 5 also sets `RIGHT_DRIVE = port.B`, which is the left attachment motor in the example's wiring, so on that robot it would drive the wrong motor |
 | `pivot_turn.py` | The turn works and the motors stop, then `NameError: name 'sound' is not defined` (line 107). With `beep=False` it completes | Line 1 imports `port, motion_sensor` but not `sound` |
 | `drive_straight.py` | Runs | Uses `6.5 / 2.54` for the wheel diameter (line 7); the other files use `5.6 / 2.54`. See item 5 |
 
@@ -79,20 +79,21 @@ Also change the three `timeout_ms` parameter comments (lines 22, 101, 193) to en
 
 ## 4. `MOTOR_INVERT` changes the drive direction but not the steering
 
-The comment on line 5 says to flip `MOTOR_INVERT` if positive speeds don't drive the robot forward. The code uses it in only one place, line 38 (`drive_speed`). The signs of the heading correction (lines 69-70) and of the two turns (lines 155, 159, 244-245) are written once and never look at it. So the code only steers correctly for one particular pairing of motor wiring and hub yaw direction.
-
-The functions assume **yaw goes up as the robot turns clockwise** (seen from above), so a positive angle is a right turn. In the simulation, with that assumption flipped relative to the wiring, the robot *fights* itself: a 5° nudge during `drive_straight` grew to about 180° off course instead of shrinking, and `tank_turn(90)` and `pivot_turn(90, 'l')` ended near -90° instead of +90°.
+The comment on line 5 says to flip `MOTOR_INVERT` if positive speeds don't drive the robot forward. The code uses it in only one place, line 38 (`drive_speed`). The signs of the heading correction (lines 69-70) and of the two turns (lines 155, 159, 244-245) are written once and never look at it. So the shipped code steers correctly for only two pairings of `MOTOR_INVERT` and the hub's yaw direction, and in those two a positive angle means opposite turns (table below). With any other pairing the robot *fights* itself: in the simulation a 5° nudge during `drive_straight` grew to about 180° off course instead of shrinking, and `tank_turn(90)` and `pivot_turn(90, 'l')` ran until their 5 s timeout and ended near -90° instead of +90°.
 
 | | Yaw goes **up** when the robot turns clockwise | Yaw goes **up** when the robot turns counter-clockwise |
 |---|---|---|
-| Shipped code, `MOTOR_INVERT = -1` | works | fights the robot |
-| Shipped code, `MOTOR_INVERT = 1` | fights the robot | works |
-| With this patch, either `MOTOR_INVERT` | works | fights the robot |
-| With this patch and `YAW_SIGN` (4b), either `MOTOR_INVERT` | works | works |
+| Shipped code, `MOTOR_INVERT = -1` | works; a positive angle is a right turn | fights the robot |
+| Shipped code, `MOTOR_INVERT = 1` | fights the robot | works; a positive angle is a left turn |
+| With the patch below, either `MOTOR_INVERT` | works; a positive angle is a right turn | fights the robot |
+| With the patch and `YAW_SIGN` (4b), either `MOTOR_INVERT` | works; a positive angle is a right turn | works; a positive angle is a right turn |
 
-*Works* means that in the simulation `drive_straight` returned to its heading after a nudge and both turns finished inside the 2° accuracy window on the correct side.
+*Works* means that in the simulation `drive_straight` returned to its heading after a nudge and both turns finished inside the 2° accuracy window.
 
-Which column is a given robot in? Run the yaw check at the end of this document. The shipped code only works in the first row's left cell and the second row's right cell, so if your `MOTOR_INVERT = -1` robots drive and turn correctly today, they are in the left column. Katydid sets `MOTOR_INVERT = 1` and calls `pivot_turn(47, 'l')`; check that it turns the right way.
+Which column is a given robot in? That is a property of its hub, so run the yaw check at the end of this document.
+
+- Mission 6 and Mission 7/11 use `MOTOR_INVERT = -1`. If they hold a line and turn correctly today, their hubs are in the first column.
+- Katydid uses `MOTOR_INVERT = 1`. If it holds a line and its turns reach their targets, it is in the second column, where a positive angle already means a left turn. If its turns spin or time out, it is in the first column and this item fixes it.
 
 **Patch.** Apply the motor sign to the finished wheel speeds instead of only to the drive speed:
 
