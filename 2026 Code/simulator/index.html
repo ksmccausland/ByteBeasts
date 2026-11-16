@@ -66,6 +66,10 @@
           <button id="btnExamples" class="btn small">📚 Examples ▾</button>
           <div class="menu" id="examplesMenu"></div>
         </div>
+        <div class="dropdown">
+          <button id="btnGithub" class="btn small" title="Load the team's missions from the ByteBeasts repository on GitHub">🐙 GitHub ▾</button>
+          <div class="menu menu-wide" id="githubMenu"></div>
+        </div>
         <input type="file" id="fileInput" accept=".py,.llsp3,.json,.txt" hidden>
       </div>
       <div class="tabs" id="codeTabs">
@@ -174,9 +178,11 @@
   <script src="js/ui/examples.js"></script>
   <script src="js/ui/panels.js"></script>
   <script src="js/ui/editors.js"></script>
+  <script src="js/ui/basefunctions.js"></script>
   <script src="js/ui/recorder.js"></script>
   <script src="js/ui/view3d.js"></script>
   <script src="js/ui/models3d.js"></script>
+  <script src="js/ui/github.js"></script>
   <script src="js/ui/app.js"></script>
 </body>
 </html>

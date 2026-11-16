@@ -10,7 +10,7 @@
   const MIN_DEG = 3;          // movements smaller than this are key bounce
   const ARM_SPEED = 400;      // same speed as the arm keys in Drive mode
   const DEG_PER_PCT = 11.1;   // SPIKE speed: 100 % = 1110 degrees per second
-  const PAIR = 'motor_pair.PAIR_1';
+  const MAX_SPEED = 1050;     // the BaseFunctions limit
 
   // What dL / dR motor degrees did to the robot (turn > 0 = to the right).
   function measure(dL, dR, cfg) {
@@ -27,23 +27,38 @@
   }
 
   // ---------------------------------------------------------------- Python
-  function stepText(s) {
+  // The program calls the team's BaseFunctions (drive_straight, tank_turn, pivot_turn), which basefunctions.js writes above main().
+  const inches = (mm) => Math.round(mm / 25.4 * 100) / 100;
+  // The functions turn the shortest way round, so a turn of more than 180 degrees is written as the turn that ends the same way.
+  const shortTurn = (deg) => Math.abs(deg) <= 180 ? deg : ((deg + 180) % 360 + 360) % 360 - 180;
+
+  function stepText(s, cfg) {
     const pad = '    ';
     if (s.kind === 'note') return pad + '# ' + s.text;
-    if (s.kind === 'arm') return pad + 'await motor.run_for_degrees(port.' + s.port + ', ' + s.deg + ', ' + ARM_SPEED + ')   # move arm ' + s.port;
-    const mm = Math.abs(Math.round(s.mm)), turn = Math.abs(Math.round(s.turn));
-    const travel = Math.abs(s.sL) + Math.abs(s.sR);   // named from the measured wheel travel, not from the velocities
-    const what = Math.abs(s.sR - s.sL) <= 0.1 * travel ? 'drive ' + (s.mm >= 0 ? 'forward ' : 'backward ') + mm + ' mm'
-      : Math.abs(s.sL + s.sR) <= 0.1 * travel ? 'turn ' + (s.turn >= 0 ? 'right ' : 'left ') + turn + ' deg'
-      : 'curve ' + (s.turn >= 0 ? 'right' : 'left') + ', ' + mm + ' mm, ' + turn + ' deg';
-    return pad + 'await motor_pair.move_tank_for_degrees(' + PAIR + ', ' + s.D + ', ' + s.pv[0] + ', ' + s.pv[1] + ')   # ' + what;
+    if (s.kind === 'arm') return pad + 'await motor.run_for_degrees(' + FLL.baseFunctions.portRef(cfg, s.port) + ', ' + s.deg + ', ' + ARM_SPEED + ')   # move arm ' + s.port;
+    const aL = Math.abs(s.sL), aR = Math.abs(s.sR), travel = aL + aR;   // named from the measured wheel travel, not from the velocities
+    const mm = Math.abs(Math.round(s.mm)), turn = Math.round(s.turn), side = s.turn >= 0 ? 'right' : 'left';
+    if (Math.abs(s.sR - s.sL) <= 0.1 * travel) {
+      const d = inches(s.mm), speed = Math.min(MAX_SPEED, Math.max(Math.abs(s.pv[0]), Math.abs(s.pv[1])));
+      return d ? pad + 'await drive_straight(' + d + ', ' + speed + ')   # drive ' + (s.mm >= 0 ? 'forward ' : 'backward ') + mm + ' mm' : '';
+    }
+    const spin = Math.abs(s.sL + s.sR) <= 0.1 * travel;      // the wheels went opposite ways
+    const pivot = Math.min(aL, aR) <= 0.1 * Math.max(aL, aR); // only one wheel went (not possible with the arrow keys)
+    if (spin || pivot) {
+      const deg = shortTurn(turn);
+      const what = 'turn ' + side + ' ' + Math.abs(turn) + ' deg' + (deg !== turn ? ', same heading as ' + deg : '');
+      if (!deg) return pad + '# ' + what + ': back at the same heading, so no turn is needed';
+      return pad + 'await ' + (spin ? 'tank_turn(' + deg + ')' : 'pivot_turn(' + deg + ", '" + (aL > aR ? 'l' : 'r') + "')") + '   # ' + what;
+    }
+    // A curve has no BaseFunction: both wheels run for D degrees, with the motor sign of this robot
+    return pad + 'await motor_pair.move_tank_for_degrees(DRIVE_PAIR, ' + s.D + ', ' + s.pv[0] + ' * MOTOR_INVERT, ' + s.pv[1] + ' * MOTOR_INVERT)   # curve ' + side + ', ' + mm + ' mm, ' + Math.abs(turn) + ' deg';
   }
 
   function renderPython(cfg, pose, steps) {
-    return 'from hub import port\nimport motor, motor_pair, runloop\n\nasync def main():\n' +
-      '    motor_pair.pair(' + PAIR + ', port.' + cfg.driveLeft + ', port.' + cfg.driveRight + ')\n' +
+    const lines = steps.map(s => stepText(s, cfg)).filter(Boolean);
+    return FLL.baseFunctions.build(cfg) + '\nasync def main():\n' +
       '    # ' + startNote(pose) + '\n' +
-      steps.map(s => stepText(s) + '\n').join('') + '\nrunloop.run(main())\n';
+      (lines.length ? lines.join('\n') + '\n' : '    pass\n') + '\nrunloop.run(main())\n';
   }
 
   // ---------------------------------------------------------------- word blocks
