@@ -448,23 +448,14 @@
       copy.name = p.name + ' copy';
       this.addProgram(copy);
     }
-    // Delete one or more saved programs. A recording that is still writing one of them is cancelled first. When the
-    // open program is one of them, the first program left is opened (an example program when none is left).
-    deletePrograms(ids) {
-      const rec = this.app.recorder;
-      if (rec && rec.active && ids.some(id => rec.owns(id))) rec.cancel();
-      const gone = new Set(ids);
-      const openGone = gone.has(this.currentId);
-      this.programs = this.programs.filter(x => !gone.has(x.id));
-      if (!this.programs.length) this.programs = FLL.examples.defaultPrograms(this.app.world.robot.config).slice(0, 1).map(x => Object.assign({ id: uid() }, x));
-      this.refreshSelect();
-      if (openGone) this.select(this.programs[0].id);
-      this.savePrograms();
-    }
     deleteCurrent() {
       const p = this.current();
       if (!p) return;
-      this.deletePrograms([p.id]);
+      this.programs = this.programs.filter(x => x.id !== p.id);
+      if (!this.programs.length) this.programs = FLL.examples.defaultPrograms(this.app.world.robot.config).slice(0, 1).map(x => Object.assign({ id: uid() }, x));
+      this.refreshSelect();
+      this.select(this.programs[0].id);
+      this.savePrograms();
     }
     convertToPython() {
       const p = this.current();

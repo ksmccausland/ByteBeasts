@@ -267,15 +267,6 @@
       this.app.editors.deletePrograms([p.id]);
     }
 
-    // Stop recording without announcing anything: the programs it was writing are being deleted.
-    cancel() {
-      if (!this.active) return;
-      this.active = false;
-      this.progs = {};
-      this.setButton();
-      this.app.log('■ Recording stopped because its program was deleted.', 'info');
-    }
-
     // keep = true: do not delete an empty recording and do not change the selected program.
     stop(keep) {
       if (!this.active) return;
