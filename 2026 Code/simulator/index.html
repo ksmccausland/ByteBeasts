@@ -22,6 +22,12 @@
       <button id="btnStop" class="btn btn-stop" title="Stop the program (Esc)">■ Stop</button>
       <button id="btnRobotStart" class="btn" title="Put the robot back at its start position (Home key)">⟲ Robot to start</button>
       <button id="btnResetField" class="btn" title="Put all mission models back in their starting positions">♻ Reset field</button>
+      <label class="speed" title="Robot: the simulated robot is set up like the robot the Python program was written for (its ports, wheels and MOTOR_INVERT). Simulator: the program runs on the robot of the Setup panel as it is.">Mode
+        <select id="modeSel">
+          <option value="robot">Robot</option>
+          <option value="simulator">Simulator</option>
+        </select>
+      </label>
       <label class="speed">Speed
         <select id="speedSel">
           <option value="0.25">¼×</option>
@@ -65,10 +71,6 @@
         <div class="dropdown">
           <button id="btnExamples" class="btn small">📚 Examples ▾</button>
           <div class="menu" id="examplesMenu"></div>
-        </div>
-        <div class="dropdown">
-          <button id="btnGithub" class="btn small" title="Load the team's missions from the ByteBeasts repository on GitHub">🐙 GitHub ▾</button>
-          <div class="menu menu-wide" id="githubMenu"></div>
         </div>
         <input type="file" id="fileInput" accept=".py,.llsp3,.json,.txt" hidden>
       </div>

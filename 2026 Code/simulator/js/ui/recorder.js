@@ -15,7 +15,7 @@
   // What dL / dR motor degrees did to the robot (turn > 0 = to the right).
   function measure(dL, dR, cfg) {
     const k = Math.PI * cfg.wheelDiameter / 360;
-    const sL = dL * (cfg.leftReversed ? -1 : 1) * k, sR = dR * k;
+    const sL = dL * (cfg.leftReversed ? -1 : 1) * k, sR = dR * (cfg.rightReversed ? -1 : 1) * k;
     return { sL: sL, sR: sR, mm: (sL + sR) / 2, turn: -(sR - sL) / cfg.trackWidth * 180 / Math.PI };
   }
 

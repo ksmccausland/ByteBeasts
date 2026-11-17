@@ -122,7 +122,7 @@
       $('hubText').textContent = rb.hub.text ? '“' + rb.hub.text + '”' : '';
       const yawCCW = geom.wrapDeg(rb.yawCCW(now));
       $('rYawBlocks').textContent = Math.trunc(-yawCCW) + '°';
-      $('rYawPy').textContent = Math.round(yawCCW * 10);
+      $('rYawPy').textContent = Math.round(yawCCW * (rb.config.hubYawCW ? -1 : 1) * 10) || 0;
       $('rHeadingPb').textContent = (-rb.yawCCW(now)).toFixed(1) + '°';
       const runner = app.runner;
       $('rTime').textContent = runner && runner.state !== 'idle' ? ((world.time - runner.startTime) / 1000).toFixed(1) + ' s' : '–';

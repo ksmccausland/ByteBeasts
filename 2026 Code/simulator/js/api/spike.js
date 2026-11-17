@@ -243,19 +243,21 @@
     const performanceNow = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
     // ---------------------------------------------------------------- motion sensor
+    const yawSign = () => (robot().config.hubYawCW ? -1 : 1);
     const motionMod = new PyModule('hub.motion_sensor', {
       TAPPED: 0, DOUBLE_TAPPED: 1, SHAKEN: 2, FALLING: 3, UNKNOWN: -1,
       TOP: 0, FRONT: 1, RIGHT: 2, BOTTOM: 3, BACK: 4, LEFT: 5,
+      // Robot mode can make the hub count its yaw clockwise (config.hubYawCW); the simulator's own hub counts counter-clockwise.
       tilt_angles: native('tilt_angles', () => {
         let yaw = geom.wrapDeg(robot().yawCCW(now()));
-        return new PyTuple([Math.round(yaw * 10), 0, 0]);
+        return new PyTuple([Math.round(yaw * yawSign() * 10) || 0, 0, 0]);
       }),
       reset_yaw: native('reset_yaw', (a) => {
         const v = a.length ? toNumber(a[0], 'reset_yaw') : 0;
-        robot().resetYaw(v / 10, now());
+        robot().resetYaw(v * yawSign() / 10, now());
         return None;
       }),
-      angular_velocity: native('angular_velocity', () => new PyTuple([0, 0, Math.round((robot().yawRate || 0) * 10)])),
+      angular_velocity: native('angular_velocity', () => new PyTuple([0, 0, Math.round((robot().yawRate || 0) * yawSign() * 10) || 0])),
       acceleration: native('acceleration', () => new PyTuple([0, 0, 981])),
       gesture: native('gesture', () => -1),
       up_face: native('up_face', () => 0),
@@ -265,7 +267,7 @@
       tap_count: native('tap_count', () => 0),
       reset_tap_count: native('reset_tap_count', () => None),
       quaternion: native('quaternion', () => {
-        const t = geom.rad(robot().yawCCW(now())) / 2;
+        const t = geom.rad(robot().yawCCW(now())) * yawSign() / 2;
         return new PyTuple([F(Math.cos(t)), F(0), F(0), F(Math.sin(t))]);
       })
     });

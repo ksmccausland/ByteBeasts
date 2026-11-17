@@ -59,6 +59,7 @@
       this.recorder = new FLL.Recorder(this);
       this.view3d = new FLL.View3D(this);
       this.speed = Number(this.settings.speed || 1);
+      this.mode = this.settings.mode === 'simulator' ? 'simulator' : 'robot';
       this.match = { active: false, started: false, over: false, timeLeft: 150, lastLaunch: 0 };
       this.drag = null;
       this.keys = {};
@@ -80,6 +81,7 @@
       s.setup = { docks: this.world.setup.docks, opponentConnections: this.world.setup.opponentConnections, inspectionBonus: this.world.setup.inspectionBonus };
       s.view = this.view.options;
       s.speed = this.speed;
+      s.mode = this.mode;
       try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch (e) { /* storage may be unavailable */ }
     }
 
@@ -100,6 +102,7 @@
       this.setPanelsCollapsed(this.settings.panelsCollapsed !== undefined ? this.settings.panelsCollapsed : true, true);
       this.world.robot.resetYaw(0, this.world.time);
       $('speedSel').value = String(this.speed);
+      $('modeSel').value = this.mode;
       this.log('Welcome! Pick a program, press ▶ Run and watch the robot. Drag the robot to move it, scroll to zoom.', 'info');
       requestAnimationFrame((t) => this.frame(t));
     }
@@ -138,6 +141,7 @@
       $('btnRobotStart').addEventListener('click', () => this.robotToStart());
       $('btnResetField').addEventListener('click', () => this.resetField());
       $('speedSel').addEventListener('change', (e) => { this.speed = Number(e.target.value); this.saveSettings(); });
+      $('modeSel').addEventListener('change', (e) => { this.mode = e.target.value === 'simulator' ? 'simulator' : 'robot'; this.saveSettings(); e.target.blur(); });
       $('btnMatch').addEventListener('click', () => (this.match.active ? this.endMatch(true) : this.startMatch()));
       $('btnClearConsole').addEventListener('click', () => { $('console').innerHTML = ''; });
       $('console').addEventListener('click', (e) => {
@@ -309,6 +313,7 @@
         this.world.carry({ kind: 'keystone', from: 'home', label: 'Keystone species' });
       }
       this.log('▶ Running “' + src.name + '”', 'ok');
+      this.prepareRobot(src);
       const ok = this.runner.start(src.code, { filename: src.mode === 'blocks' ? 'blocks.py' : 'program.py' });
       if (ok) {
         this.match.lastLaunch = this.world.time;
@@ -319,6 +324,35 @@
         }
       }
       this.updateRunState();
+    }
+
+    // Robot mode: a Python program runs on the robot it was written for, read from its settings (ports, wheel size, MOTOR_INVERT).
+    // MOTOR_INVERT = -1 means positive speeds drive that robot backwards, so both wheels are wired the other way round, and
+    // the hub's yaw then counts clockwise (the only direction in which the team's turn code can steer that robot).
+    // Simulator mode, and word blocks, use the robot of the Setup panel as it is. The program is never changed.
+    prepareRobot(src) {
+      const cur = this.world.robot.config;
+      let cfg = JSON.parse(JSON.stringify(cur));
+      if (this.mode === 'robot' && src.mode === 'python') {
+        const fit = FLL.github.robotFor(src.code, cur);
+        if (fit.cfg) cfg = fit.cfg;
+        const inv = fit.settings.invert === -1;
+        cfg.leftReversed = !inv;
+        cfg.rightReversed = inv;
+        cfg.hubYawCW = inv;
+        cfg.programWiring = true;
+        if (fit.changes.length) this.log('Robot mode: the robot is set up like the program: ' + fit.changes.join('; ') + '.', 'info');
+        if (inv) this.log('Robot mode: MOTOR_INVERT = -1, so positive speeds drive this robot backwards, and its yaw counts clockwise.', 'info');
+        if ((!fit.settings.left || !fit.settings.right) && /motor_pair/.test(src.code)) this.log('Robot mode: the program does not say which ports its wheels are on, so the robot of the Setup panel is used.', 'warn');
+      } else if (cfg.programWiring) {
+        cfg.leftReversed = true;
+        delete cfg.rightReversed; delete cfg.hubYawCW; delete cfg.programWiring;
+      }
+      if (JSON.stringify(cfg) === JSON.stringify(cur)) return;
+      const bad = this.panels.validateConfig(cfg);
+      if (bad) { this.log('The robot for this program cannot be set up: ' + bad + ' The robot of the Setup panel is used.', 'err'); return; }
+      this.setRobotConfig(cfg);
+      this.panels.syncSetup();
     }
 
     stop() {
@@ -476,26 +510,36 @@
 
     // ------------------------------------------------------------ files
     async openFile(file) {
-      const name = file.name.replace(/\.[^.]+$/, '');
       try {
-        if (/\.llsp3$/i.test(file.name)) {
-          const res = await FLL.files.readLlsp3(await file.arrayBuffer());
-          this.editors.addProgram({ name: res.name || name, mode: res.mode, python: res.python || '', blocks: res.blocks || null });
-          this.log('Opened SPIKE project “' + (res.name || name) + '” (' + (res.mode === 'blocks' ? 'word blocks' : 'Python') + ').', 'ok');
-          if (res.warnings && res.warnings.length) this.log('Some blocks are not supported by the simulator and were replaced by ⚠ blocks: ' + res.warnings.join(', '), 'warn');
-        } else if (/\.json$/i.test(file.name)) {
-          const obj = JSON.parse(await file.text());
-          if (!obj || (obj.format !== 'fll-sim-program' && !obj.python && !obj.blocks)) throw new Error('This is not a simulator program file.');
-          this.editors.addProgram({ name: obj.name || name, mode: obj.mode || (obj.blocks ? 'blocks' : 'python'), python: obj.python || '', blocks: obj.blocks || null });
-          this.log('Opened “' + (obj.name || name) + '”.', 'ok');
-        } else {
-          const text = await file.text();
-          this.editors.addProgram({ name: name, mode: 'python', python: text });
-          this.log('Opened Python file “' + file.name + '”.', 'ok');
-        }
+        await this.openData(file.name, await file.arrayBuffer());
       } catch (e) {
         this.log('Could not open ' + file.name + ': ' + e.message, 'err');
       }
+    }
+
+    // Opens a program from the bytes of a file (one from the computer, or one from GitHub) and returns the new program.
+    // Some .llsp3 files of the team are the Python text itself and not a zip, so a file that does not start with "PK" is read as text.
+    async openData(fileName, buffer) {
+      const name = fileName.replace(/\.[^.]+$/, '');
+      const text = () => new TextDecoder().decode(buffer);
+      const head = new Uint8Array(buffer, 0, Math.min(2, buffer.byteLength));
+      const isZip = head[0] === 0x50 && head[1] === 0x4B;
+      let prog;
+      if (/\.llsp3$/i.test(fileName) && isZip) {
+        const res = await FLL.files.readLlsp3(buffer);
+        prog = this.editors.addProgram({ name: res.name || name, mode: res.mode, python: res.python || '', blocks: res.blocks || null });
+        this.log('Opened SPIKE project “' + (res.name || name) + '” (' + (res.mode === 'blocks' ? 'word blocks' : 'Python') + ').', 'ok');
+        if (res.warnings && res.warnings.length) this.log('Some blocks are not supported by the simulator and were replaced by ⚠ blocks: ' + res.warnings.join(', '), 'warn');
+      } else if (/\.json$/i.test(fileName)) {
+        const obj = JSON.parse(text());
+        if (!obj || (obj.format !== 'fll-sim-program' && !obj.python && !obj.blocks)) throw new Error('This is not a simulator program file.');
+        prog = this.editors.addProgram({ name: obj.name || name, mode: obj.mode || (obj.blocks ? 'blocks' : 'python'), python: obj.python || '', blocks: obj.blocks || null });
+        this.log('Opened “' + (obj.name || name) + '”.', 'ok');
+      } else {
+        prog = this.editors.addProgram({ name: name, mode: 'python', python: text() });
+        this.log('Opened Python file “' + fileName + '”' + (/\.llsp3$/i.test(fileName) ? ' (a SPIKE project saved as plain text).' : '.'), 'ok');
+      }
+      return prog;
     }
 
     download(name, blob) {
@@ -833,12 +877,13 @@
       if (k[' ']) { f = 0; t = 0; }
       const vl = (f - t * 0.6) * fast, vr = (f + t * 0.6) * fast;
       const sl = cfg.leftReversed ? -1 : 1;
-      const want = [Math.round(vl * sl), Math.round(vr)];
+      const sr = cfg.rightReversed ? -1 : 1;
+      const want = [Math.round(vl * sl), Math.round(vr * sr)];
       if (!this.lastDrive || this.lastDrive[0] !== want[0] || this.lastDrive[1] !== want[1]) {
         if (want[0] === 0 && want[1] === 0) { L.stop('brake'); R.stop('brake'); }
         else { L.runAt(want[0], 3000); R.runAt(want[1], 3000); }
         this.lastDrive = want;
-        this.recorder.drive([-want[0] || 0, want[1] || 0]);
+        this.recorder.drive([Math.round(vl) || 0, Math.round(vr) || 0]);   // forward = positive, whatever the wiring
       }
       const armDrive = (port, up, down) => {
         const m = rb.motors[port];
