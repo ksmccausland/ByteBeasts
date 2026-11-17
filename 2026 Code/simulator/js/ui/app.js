@@ -31,6 +31,37 @@
       c.devices.A = { type: 'distance', x: 112, y: 30, angle: 0 };
       c.devices.F = { type: 'force', x: 112, y: -30 };
       return c;
+    },
+    // The team robots, with the ports of their mission programs. Body, track and wheel size are the default design (not measured).
+    mh20: () => {
+      const c = JSON.parse(JSON.stringify(FLL.robot.DEFAULT_CONFIG));
+      c.name = 'M & H 2.0 robot (drive A/E, attachments B/D)';
+      c.driveLeft = 'A';
+      c.driveRight = 'E';
+      c.devices = {
+        A: { type: 'motor', kind: 'medium' },
+        B: { type: 'motor', kind: 'medium', mount: 'front', reach: 80, armLength: 90 },
+        C: { type: 'none' },
+        D: { type: 'motor', kind: 'medium', mount: 'front', reach: 80, armLength: 90 },
+        E: { type: 'motor', kind: 'medium' },
+        F: { type: 'none' }
+      };
+      return c;
+    },
+    specificity: () => {
+      const c = JSON.parse(JSON.stringify(FLL.robot.DEFAULT_CONFIG));
+      c.name = 'Specificity robot (drive A/C, attachments B/F)';
+      c.driveLeft = 'A';
+      c.driveRight = 'C';
+      c.devices = {
+        A: { type: 'motor', kind: 'medium' },
+        B: { type: 'motor', kind: 'medium', mount: 'front', reach: 80, armLength: 90 },
+        C: { type: 'motor', kind: 'medium' },
+        D: { type: 'none' },
+        E: { type: 'none' },
+        F: { type: 'motor', kind: 'medium', mount: 'front', reach: 80, armLength: 90 }
+      };
+      return c;
     }
   };
 
@@ -60,6 +91,7 @@
       this.view3d = new FLL.View3D(this);
       this.speed = Number(this.settings.speed || 1);
       this.mode = this.settings.mode === 'simulator' ? 'simulator' : 'robot';
+      this.setupRobot = null;   // the robot of the Setup panel while a Robot-mode run has its program's robot in place
       this.match = { active: false, started: false, over: false, timeLeft: 150, lastLaunch: 0 };
       this.drag = null;
       this.keys = {};
@@ -76,7 +108,7 @@
     }
     saveSettings() {
       const s = this.settings;
-      s.robotConfig = this.world.robot.config;
+      s.robotConfig = this.setupRobot || this.world.robot.config;
       s.startPose = this.startPose;
       s.setup = { docks: this.world.setup.docks, opponentConnections: this.world.setup.opponentConnections, inspectionBonus: this.world.setup.inspectionBonus };
       s.view = this.view.options;
@@ -93,7 +125,6 @@
       this.bindUi();
       this.bindField();
       this.bindKeys();
-      this.updateTokens();
       this.view.resize();
       new ResizeObserver(() => { this.view.resize(); this.view3d.resize(); this.editors.resize(); }).observe($('fieldWrap'));
       new ResizeObserver(() => this.editors.resize()).observe($('editorArea'));
@@ -315,6 +346,7 @@
       this.log('▶ Running “' + src.name + '”', 'ok');
       this.prepareRobot(src);
       const ok = this.runner.start(src.code, { filename: src.mode === 'blocks' ? 'blocks.py' : 'program.py' });
+      if (!ok) this.restoreSetupRobot();
       if (ok) {
         this.match.lastLaunch = this.world.time;
         this.match.robotOut = true;
@@ -329,6 +361,7 @@
     // Robot mode: a Python program runs on the robot it was written for, read from its settings (ports, wheel size, MOTOR_INVERT).
     // MOTOR_INVERT = -1 means positive speeds drive that robot backwards, so both wheels are wired the other way round, and
     // the hub's yaw then counts clockwise (the only direction in which the team's turn code can steer that robot).
+    // That robot is for this run only: restoreSetupRobot puts the robot of the Setup panel back when the run ends.
     // Simulator mode, and word blocks, use the robot of the Setup panel as it is. The program is never changed.
     prepareRobot(src) {
       const cur = this.world.robot.config;
@@ -351,7 +384,17 @@
       if (JSON.stringify(cfg) === JSON.stringify(cur)) return;
       const bad = this.panels.validateConfig(cfg);
       if (bad) { this.log('The robot for this program cannot be set up: ' + bad + ' The robot of the Setup panel is used.', 'err'); return; }
+      if (cfg.programWiring && !this.setupRobot) this.setupRobot = cur;
       this.setRobotConfig(cfg);
+      this.panels.syncSetup();
+    }
+
+    // Put the robot of the Setup panel back once a Robot-mode run has ended (finished, stopped, failed or never started).
+    restoreSetupRobot() {
+      if (!this.setupRobot) return;
+      const setup = this.setupRobot;
+      this.setupRobot = null;
+      this.setRobotConfig(setup);
       this.panels.syncSetup();
     }
 
@@ -366,12 +409,14 @@
     }
 
     onProgramError(e) {
+      this.restoreSetupRobot();
       this.logError(e);
       this.editors.markError(e.line);
       this.updateRunState();
       this.toast(e.type + ': ' + e.message, 5000);
     }
     onProgramFinish(why) {
+      this.restoreSetupRobot();
       if (why === 'done' || why === 'exit') this.log('✔ Program finished after ' + ((this.world.time - this.runner.startTime) / 1000).toFixed(1) + ' s', 'ok');
       this.editors.clearRunHighlight();
       this.updateRunState();
@@ -414,7 +459,6 @@
       if (this.recorder.active) this.recorder.note('robot placed by hand: x ' + Math.round(pose.x) + ', y ' + Math.round(pose.y) + ', facing ' + FLL.ui.compassOf(pose.theta) + ' deg');
       this.resetDriveState();
       if (clearTrail) { rb.trail = []; rb.lastPoseForTrail = null; }
-      this.updateTokens();
     }
     // Precision token rule: touching the robot while it is not completely in home costs a token.
     interruptionCheck() {
@@ -476,7 +520,6 @@
       this.placeRobot(this.startPose, true);
       $('btnMatch').textContent = '⏹ End match';
       $('btnMatch').classList.add('active');
-      this.updateTokens();
       this.log('🏁 Match mode: the 2:30 timer starts at your first launch. Launch from a launch area; picking the robot up outside home costs a precision token.', 'info');
       this.toast('Match ready – launch your first run!');
     }
@@ -489,7 +532,6 @@
       $('btnMatch').textContent = '🏁 Start match';
       $('btnMatch').classList.remove('active');
       $('matchOver').classList.remove('show');
-      this.updateTokens();
     }
     matchTimeUp() {
       this.match.over = true;
@@ -502,10 +544,6 @@
       this.log('⏱ Match over – final score ' + score.total, 'ok');
       this.setPanelsCollapsed(false);
       this.panels.show('missions');
-    }
-    updateTokens() {
-      const n = this.world.setup.tokens;
-      $('tokenDots').innerHTML = '●'.repeat(n) + '<span class="lost">' + '●'.repeat(6 - n) + '</span>';
     }
 
     // ------------------------------------------------------------ files
@@ -737,7 +775,6 @@
       this.resetDriveState();
       rb.stopAll('coast');
       this.interruptionCheck();
-      this.updateTokens();
     }
     endRobotDrag() {
       const rb = this.world.robot;
@@ -755,13 +792,15 @@
     }
 
     // ------------------------------------------------------------ screen layout
-    // split: code | map, split-r: map | code, map: map only. The info panel below the map can be collapsed.
+    // split: code | map, split-r: map | code, map: map only, info: only the info panels (Robot, Missions, Setup, Help).
+    // The info panel below the map can be collapsed.
     setLayout(name, quiet) {
-      if (['split', 'split-r', 'map'].indexOf(name) < 0) name = 'split';
+      if (['split', 'split-r', 'map', 'info'].indexOf(name) < 0) name = 'split';
       this.layout = name;
       const lay = $('layout');
       lay.classList.toggle('swap', name === 'split-r');
       lay.classList.toggle('maponly', name === 'map');
+      lay.classList.toggle('infoonly', name === 'info');
       document.querySelectorAll('#layoutSwitch [data-layout]').forEach(b => b.classList.toggle('on', b.dataset.layout === name));
       this.settings.layout = name;
       if (!quiet) this.saveSettings();
@@ -799,7 +838,6 @@
         $('fieldCanvas').focus();
         this.fieldFocused = true;
         this.interruptionCheck();
-        this.updateTokens();
       } else {
         this.recorder.stop();
         this.world.robot.stopAll('brake');
@@ -839,7 +877,7 @@
         else if (k === '[') rb.pose.theta += geom.rad(e.shiftKey ? 15 : 1);
         else if (k === ']') rb.pose.theta -= geom.rad(e.shiftKey ? 15 : 1);
         else moved = false;
-        if (moved) { e.preventDefault(); this.interruptionCheck(); this.updateTokens(); rb.trail = []; this.endRobotDragQuiet(); }
+        if (moved) { e.preventDefault(); this.interruptionCheck(); rb.trail = []; this.endRobotDragQuiet(); }
       });
       document.addEventListener('keyup', (e) => {
         const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;

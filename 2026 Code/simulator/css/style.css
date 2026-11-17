@@ -31,29 +31,27 @@ button, select, input { font: inherit; }
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 6px 12px;
+  gap: 10px;
+  padding: 3px 10px;
   background: linear-gradient(90deg, #12161b, #1b2b1d 60%, #12161b);
   color: #fff;
-  border-bottom: 3px solid var(--accent);
+  border-bottom: 2px solid var(--accent);
   flex-wrap: wrap;
 }
-.brand { display: flex; align-items: center; gap: 10px; min-width: 210px; }
-.brand .logo { font-size: 28px; filter: drop-shadow(0 0 6px rgba(124,194,66,.6)); }
-.brand .title { font-weight: 800; letter-spacing: .3px; font-size: 16px; }
-.brand .subtitle { font-size: 11px; color: #b8c7b0; }
+.brand { display: flex; align-items: center; gap: 6px; }
+.brand .logo { font-size: 18px; filter: drop-shadow(0 0 6px rgba(124,194,66,.6)); }
+.brand .title { font-weight: 800; letter-spacing: .3px; font-size: 14px; }
+.brand .subtitle { display: none; }
 .run-controls { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .match-info { margin-left: auto; display: flex; align-items: center; gap: 10px; }
-.timer-box, .score-box, .tokens-box {
+.timer-box, .score-box {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.15); border-radius: 8px;
-  padding: 2px 10px; min-width: 64px;
+  padding: 0 8px; min-width: 56px;
 }
 .match-info .lbl { font-size: 10px; text-transform: uppercase; letter-spacing: .6px; color: #a9b4a3; }
-#matchTimer { font: 700 18px var(--mono); }
-#scoreTotal { font: 800 20px var(--mono); color: #b9f58a; }
-#tokenDots { font-size: 13px; letter-spacing: 1px; color: #ff4b4b; }
-#tokenDots .lost { color: #555; }
+#matchTimer { font: 700 15px var(--mono); }
+#scoreTotal { font: 800 16px var(--mono); color: #b9f58a; }
 .timer-box.running #matchTimer { color: #ffd54f; }
 .timer-box.low #matchTimer { color: #ff6b6b; }
 .speed { font-size: 12px; color: #c7d0c2; display: flex; align-items: center; gap: 4px; }
@@ -169,6 +167,13 @@ button, select, input { font: inherit; }
 #layout.swap { flex-direction: row-reverse; }
 #layout.swap #codePane { border-right: 0; border-left: 1px solid var(--line); }
 #layout.maponly #codePane, #layout.maponly #splitter { display: none; }
+/* info only: no code and no map, the info panels use the whole window (the tools above the map and the show/hide button are not needed) */
+#layout.infoonly #codePane, #layout.infoonly #splitter, #layout.infoonly #fieldWrap { display: none; }
+#layout.infoonly #fieldPane #panelArea { display: block; flex: 1 1 auto; }
+#layout.infoonly .field-toolbar > :not(.layout-switch) { display: none; }
+#layout.infoonly .ptab-toggle { display: none; }
+#layout.infoonly #fieldPane .ptab.active { color: var(--ink); border-bottom-color: var(--accent); }
+#layout.infoonly #fieldPane .panel-tabs { border-bottom: 1px solid var(--line); }
 /* info panel collapsed: the map uses all the height */
 #fieldPane.panels-collapsed #panelArea { display: none; }
 #fieldPane.panels-collapsed #fieldWrap { flex: 1 1 auto; }

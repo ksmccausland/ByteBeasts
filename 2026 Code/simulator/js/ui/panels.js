@@ -21,7 +21,8 @@
 
     init() {
       document.querySelectorAll('#panelTabs .ptab[data-panel]').forEach(b => b.addEventListener('click', () => {
-        // clicking the open tab again hides the panel so the map gets all the space
+        // clicking the open tab again hides the panel so the map gets all the space (not in the info-only layout: no map there)
+        if (this.app.layout === 'info') { this.show(b.dataset.panel); return; }
         if (b.dataset.panel === this.active && !this.app.panelsCollapsed) { this.app.setPanelsCollapsed(true); return; }
         if (this.app.panelsCollapsed) this.app.setPanelsCollapsed(false);
         this.show(b.dataset.panel);
@@ -288,6 +289,8 @@
               <button class="btn small" data-preset="default">SPIKE driving base (guided mission)</button>
               <button class="btn small" data-preset="twocolor">2 color sensors (line following)</button>
               <button class="btn small" data-preset="distance">Distance + force sensor</button>
+              <button class="btn small" data-preset="mh20">M &amp; H 2.0 (drive A/E, attach B/D)</button>
+              <button class="btn small" data-preset="specificity">Specificity (drive A/C, attach B/F)</button>
             </div>
             <div class="cards" style="grid-template-columns: repeat(auto-fill, minmax(230px, 1fr))">
               <div class="form-grid">
