@@ -624,6 +624,9 @@
           ed.convertToPython();
           this.toast('Created an editable Python copy of your blocks');
           break;
+        case 'manage':
+          this.manageDialog();
+          break;
         case 'delete':
           this.confirm('Delete “' + p.name + '”? This cannot be undone.', () => ed.deleteCurrent());
           break;
@@ -654,6 +657,40 @@
       this.modal(`<p>${FLL.ui.esc(text)}</p><div class="row"><button class="btn" id="mCancel">Cancel</button><button class="btn primary" id="mOk">OK</button></div>`, (close) => {
         $('mOk').onclick = () => { close(); cb(); };
         $('mCancel').onclick = close;
+      });
+    }
+    // Delete several saved programs at once. Programs, opened files and recorded drives are all kept in one list.
+    manageDialog() {
+      const ed = this.editors, all = ed.programs.slice();
+      const isRecording = (p) => /^Recorded drive/.test(p.name);
+      const count = (n) => n + (n === 1 ? ' program' : ' programs');
+      const rows = all.map(p => `<label class="pick-row"><input type="checkbox" value="${FLL.ui.esc(p.id)}"><span class="pick-name">${p.mode === 'blocks' ? '🧩' : '🐍'} ${FLL.ui.esc(p.name)}${p.id === ed.currentId ? ' <span class="muted">(open)</span>' : ''}</span><span class="muted">${p.updated ? new Date(p.updated).toLocaleString() : ''}</span></label>`).join('');
+      this.modal(`<h3>Delete saved programs</h3>
+        <p class="small-note">Programs, opened files and recorded drives are all kept in this browser. Tick the ones to delete.</p>
+        <div class="pick-tools"><button class="btn small" id="mAll">Select all</button><button class="btn small" id="mNone">Select none</button>${all.some(isRecording) ? '<button class="btn small" id="mRecs">Select recorded drives</button>' : ''}</div>
+        <div class="pick-list">${rows}</div>
+        <div class="row"><button class="btn" id="mCancel">Cancel</button><button class="btn danger" id="mDelete" disabled>Delete selected</button></div>`, (close) => {
+        const boxes = Array.from($('modalBody').querySelectorAll('.pick-list input'));
+        const del = $('mDelete');
+        const sync = () => {
+          const n = boxes.filter(b => b.checked).length;
+          del.disabled = n === 0;
+          del.textContent = n ? 'Delete ' + count(n) : 'Delete selected';
+        };
+        const tick = (test) => { boxes.forEach((b, i) => { b.checked = test(all[i]); }); sync(); };
+        boxes.forEach(b => { b.onchange = sync; });
+        $('mAll').onclick = () => tick(() => true);
+        $('mNone').onclick = () => tick(() => false);
+        if ($('mRecs')) $('mRecs').onclick = () => tick(isRecording);
+        $('mCancel').onclick = close;
+        del.onclick = () => {
+          const ids = boxes.filter(b => b.checked).map(b => b.value);
+          const note = ids.length === all.length ? ' One example program is added back, so the list is never empty.' : '';
+          this.confirm('Delete ' + count(ids.length) + '? This cannot be undone.' + note, () => {
+            ed.deletePrograms(ids);
+            this.toast('Deleted ' + count(ids.length));
+          });
+        };
       });
     }
     newProgramDialog() {
