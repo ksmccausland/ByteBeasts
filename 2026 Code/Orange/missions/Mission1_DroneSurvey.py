@@ -267,16 +267,25 @@ async def tank_turn(
 # Launch the drone (20 points). Bonus: flip the LiDAR map so the scan marker lands in the survey area (10 points).
 # Equipment may not touch either model at the end of the match, so the attachment is pulled back after every push.
 #
-# START: robot in the LEFT launch area, facing the far end of the table (x = 220 mm, y = 140 mm, nose pointing north).
-# The distances come from the field layout in the simulator's source (mm). A separate geometry check found the route clear
-# of the pilot, scan marker and LiDAR map, with both attachment pushes landing in their zones. The program itself has NOT
-# been run in the simulator or on the real robot: tune the numbers on the table.
+# START: robot completely inside the LEFT launch area, wheels at x = 220 mm, y = 140 mm (from the lower left corner of the
+# mat), nose pointing NORTH (towards the far end of the table). The attachment motor on port B (LEFT_ATTACH) is on the front.
+# This is the simulator's "left" start position.
+#
+# ROUTE: north 120 mm, turn right, east 620 mm along y = 260 mm (above the scan marker and cables), flip the LiDAR map,
+# turn right, south 60 mm so the attachment is over the drone, launch it, back up, turn right and drive west to the launch area.
+# The robot stays below y = 475 mm, so it never reaches Mission 15 (or the other docks) wherever the docks are placed.
+#
+# Checked in the simulator: 12 runs for each of the three dock positions of Mission 15 scored 30 with no contact with any
+# other model. The simulator only checks that the attachment is over the drone when it turns, not which way the drone moves.
+# Check on the table that the push lifts the drone UP (north) and, if not, change TOOL_DEGREES or the attachment.
+# It has NOT been run on the real robot: tune the numbers on the table.
 MM = 1 / 25.4                       # drive_straight takes inches
 
 TOOL = LEFT_ATTACH                  # attachment motor that pushes the LiDAR map and the drone
 TOOL_DEGREES = 90                   # how far the attachment turns for one push (use -90 to push the other way)
 TOOL_SPEED = 500                    # attachment speed
 SPEED = 500                         # drive speed
+SETTLE_MS = 400                     # pause after every drive and turn
 
 OUT_MM = 120                        # north, so the robot drives east along y = 260 mm, clear of the scan marker (y < 74 mm)
 ACROSS_MM = 620                     # east along the table to the LiDAR map (x = 840 mm)
@@ -286,24 +295,34 @@ TO_DRONE_MM = 60                    # south, until the attachment is over the dr
 # negative angle to the RIGHT. If your robot turns the other way, check MOTOR_INVERT and the hub's yaw direction.
 RIGHT = -90
 
+async def drive(mm, timeout_ms):
+    await drive_straight(mm * MM, SPEED, timeout_ms=timeout_ms)
+    # Let the wheels stop completely. A turn that starts while the wheels are still rolling swings wide and drifts
+    # the robot north, into Mission 15, and everything after it is in the wrong place.
+    await runloop.sleep_ms(SETTLE_MS)
+
+async def turn(angle):
+    await tank_turn(angle)
+    await runloop.sleep_ms(SETTLE_MS)
+
 async def push(degrees):
     # push, then pull back so the attachment is not touching the model at the end
     await motor.run_for_degrees(TOOL, degrees, TOOL_SPEED)
     await motor.run_for_degrees(TOOL, -degrees, TOOL_SPEED)
 
 async def main():
-    await drive_straight(OUT_MM * MM, SPEED, timeout_ms=5000)
-    await tank_turn(RIGHT)                          # facing east
-    await drive_straight(ACROSS_MM * MM, SPEED, timeout_ms=8000)
+    await drive(OUT_MM, 5000)
+    await turn(RIGHT)                               # facing east
+    await drive(ACROSS_MM, 8000)
 
     await push(TOOL_DEGREES)                        # flip the LiDAR map (bonus)
 
-    await tank_turn(RIGHT)                          # facing south, towards the drone
-    await drive_straight(TO_DRONE_MM * MM, SPEED, timeout_ms=5000)
+    await turn(RIGHT)                               # facing south, towards the drone
+    await drive(TO_DRONE_MM, 5000)
     await push(TOOL_DEGREES)                        # launch the drone
 
-    await drive_straight(-TO_DRONE_MM * MM, SPEED, timeout_ms=5000)
-    await tank_turn(RIGHT)                          # facing west, towards home
-    await drive_straight(ACROSS_MM * MM, SPEED, timeout_ms=8000)
+    await drive(-TO_DRONE_MM, 5000)
+    await turn(RIGHT)                               # facing west, towards home
+    await drive(ACROSS_MM, 8000)
 
 runloop.run(main())
