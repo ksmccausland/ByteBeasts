@@ -2,12 +2,12 @@ import runloop, motor_pair, motor, color, color_sensor, time
 from hub import light, motion_sensor, port, sound, button, light_matrix
 
 WHEEL_DIAMETER_IN = 5.6 / 2.54        # diameter of wheels in measured in inches
-MOTOR_INVERT = -1                    # use to invert motors if positve drive directions do no result in forward motion
+MOTOR_INVERT = 1                    # use to invert motors if positve drive directions do no result in forward motion
 MAX_SPEED = 1050                    # max speed of the robot (DO NOT CHANGE)
 LEFT_DRIVE = port.A                # port of left drive motor
 RIGHT_DRIVE = port.E            # port of right drive motor
-LEFT_ATTACH = port.B                # port of left attachment motor
-RIGHT_ATTACH = port.F                # port of right attachment motor
+LEFT_ATTACH = port.F                # port of left attachment motor
+RIGHT_ATTACH = port.B                # port of right attachment motor
 
 motor_pair.pair(motor_pair.PAIR_1, LEFT_DRIVE, RIGHT_DRIVE)
 DRIVE_PAIR = motor_pair.PAIR_1
@@ -187,7 +187,7 @@ async def tank_turn(
     *,
     min_speed=100,    # Minimum speed to overcome friction (0-1000 scale)
     acceleration=500,    # how fast robot will accelerate
-    kp=2.5,            # correction strength: higher number means robot will correct more strongly (change only for heavy attachments)
+    kp=1.5,            # correction strength: higher number means robot will correct more strongly (change only for heavy attachments)
     accuracy=2,        # how close to target angle is acceptable
     beep=True,        # if True robot will beep when function has completed
     timeout_ms=5000    # how long the function has to run in milliseconds
@@ -266,19 +266,32 @@ async def tank_turn(
 async def main():
 # base example function
 # base example function
+    
     await drive_straight(-0.5,500)
     await drive_straight(23, 500)
     runloop.sleep_ms(1000)
     await pivot_turn(-26,"L")
     runloop.sleep_ms(1000)
     await drive_straight(2,300)
-    await motor.run_for_degrees(RIGHT_ATTACH,180,300)
-    runloop.sleep_ms(1000)
-    await pivot_turn(-30,"l")
-    await motor.run_for_degrees(RIGHT_ATTACH,-240,300)
-    await drive_straight(1,200)
-    await pivot_turn(10,"l")
-    await drive_straight(1,200)
-    runloop.run(pivot_turn(-20,"l"),motor.run_for_degrees(RIGHT_ATTACH,70,300))
-    await drive_straight(-10,300)
+    
+    await motor.run_for_degrees(RIGHT_ATTACH,-360,700)
+    
+    await drive_straight(-.5,200)
+    
+    runloop.sleep_ms(500)
+
+    runloop.run(pivot_turn(-30,"l"), motor.run_for_degrees(RIGHT_ATTACH,380,800))
+    
+    await drive_straight(1.5,200)
+    
+    runloop.run(pivot_turn(-10,"l"),motor.run_for_degrees(RIGHT_ATTACH,-70,300))
+    
+    runloop.run(drive_straight(-10,500),motor.run_for_degrees(RIGHT_ATTACH,-70,300))
+    
+    await tank_turn(90, kp=1)
+    
+    await drive_straight(1.5,500)
+    await pivot_turn(-60,"r", kp=1)
+    
+    await drive_straight(4,200)
 runloop.run(main())
