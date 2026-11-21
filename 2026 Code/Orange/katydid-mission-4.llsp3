@@ -4,11 +4,7 @@ import motor_pair
 import motor
 import time
 
-from hub import port, motion_sensor
-import runloop
-import motor_pair
-import motor
-import time
+# Last used 11/20 with Big Foot
 
 async def pivot_turn(
     target_angle,        # number of degrees to turn
@@ -104,7 +100,7 @@ async def pivot_turn(
             sound.beep(3000)
 
 WHEEL_DIAMETER_IN = 6.5 / 2.54
-MOTOR_INVERT = 1
+MOTOR_INVERT = -1
 MAX_SPEED = 1050
 LEFT_DRIVE = port.A
 RIGHT_DRIVE = port.E
@@ -272,9 +268,9 @@ async def drive_straight(
 
 
 async def main():
-    await drive_straight(23, 1000,timeout_ms=5000)
-    await pivot_turn(47,'l', timeout_ms=5000)
+    await drive_straight(24, 1000,timeout_ms=15000)
+    await pivot_turn(40,'l', timeout_ms=5000)
     await drive_straight(1, 1000,timeout_ms=5000)
     await right_arm(-2, 100,timeout_ms=5000)
-
+    await drive_straight(-5, 1000,timeout_ms=5000)
 runloop.run(main())
