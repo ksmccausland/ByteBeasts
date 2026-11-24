@@ -266,32 +266,41 @@ async def tank_turn(
 async def main():
 # base example function
 # base example function
-    
+
     await drive_straight(-0.5,500)
+    await motor.run_for_degrees(RIGHT_ATTACH,4**0,700)
+
     await drive_straight(23, 500)
     runloop.sleep_ms(1000)
     await pivot_turn(-26,"L")
     runloop.sleep_ms(1000)
     await drive_straight(2,300)
-    
+
     await motor.run_for_degrees(RIGHT_ATTACH,-360,700)
-    
+
     await drive_straight(-.5,200)
-    
+
     runloop.sleep_ms(500)
 
     runloop.run(pivot_turn(-30,"l"), motor.run_for_degrees(RIGHT_ATTACH,380,800))
-    
+
     await drive_straight(1.5,200)
-    
+
     runloop.run(pivot_turn(-10,"l"),motor.run_for_degrees(RIGHT_ATTACH,-70,300))
-    
+
     runloop.run(drive_straight(-10,500),motor.run_for_degrees(RIGHT_ATTACH,-70,300))
-    
+
     await tank_turn(90, kp=1)
-    
+
     await drive_straight(1.5,500)
     await pivot_turn(-60,"r", kp=1)
-    
-    await drive_straight(4,200)
+
+    await drive_straight(3.5,200)
+    await drive_straight(-1,1000)
+    await pivot_turn(50,"r", kp=1)
+    await drive_straight(-8,700)
+    await drive_straight(1,200)
+    await pivot_turn(80,"r", kp=1)
+    await drive_straight(-20,1000)
+
 runloop.run(main())
