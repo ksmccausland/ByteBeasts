@@ -4,8 +4,8 @@ from hub import light, motion_sensor, port, sound, button, light_matrix
 WHEEL_DIAMETER_IN = 5.6 / 2.54        # diameter of wheels in measured in inches
 MOTOR_INVERT = -1                    # use to invert motors if positve drive directions do no result in forward motion
 MAX_SPEED = 1000                    # max speed of the robot (DO NOT CHANGE)
-LEFT_DRIVE = port.E               # port of left drive motor
-RIGHT_DRIVE = port.A     # port of right drive motor
+LEFT_DRIVE = port.E            # port of left drive motor
+RIGHT_DRIVE = port.A    # port of right drive motor
 LEFT_ATTACH = port.B                # port of left attachment motor
 RIGHT_ATTACH = port.F                # port of right attachment motor
 
@@ -265,13 +265,18 @@ async def tank_turn(
 async def main():
     gear_ratio=int(28/12)
     lift=180*gear_ratio
+    lift2=30*gear_ratio
     stage=47
     speed_of_lava_chicken=1000
     pause=200
 
+    #good starting gear position
+    #runloop.run(motor.run_to_absolute_position(LEFT_ATTACH,242,600),motor.run_to_absolute_position(RIGHT_ATTACH,270,600))
+    #await runloop.sleep_ms(10*1000)
+
     # drive to mushroom
     await drive_straight(-.5)
-    runloop.run(motor.run_for_degrees(LEFT_ATTACH,stage,speed_of_lava_chicken),motor.run_for_degrees(RIGHT_ATTACH,-stage,speed_of_lava_chicken), drive_straight(23,700)) 
+    runloop.run(motor.run_for_degrees(LEFT_ATTACH,stage,speed_of_lava_chicken),motor.run_for_degrees(RIGHT_ATTACH,-stage,speed_of_lava_chicken), drive_straight(23,700))
     await runloop.sleep_ms(pause)
     await pivot_turn(7,"r")
     await runloop.sleep_ms(pause)
@@ -282,11 +287,20 @@ async def main():
     runloop.run(motor.run_for_degrees(LEFT_ATTACH,lift,speed_of_lava_chicken),motor.run_for_degrees(RIGHT_ATTACH,-lift,speed_of_lava_chicken))
     await runloop.sleep_ms(pause)
 
-    #back away from mushroom
-    runloop.run(motor.run_for_degrees(LEFT_ATTACH,-200,speed_of_lava_chicken),motor.run_for_degrees(RIGHT_ATTACH,200,speed_of_lava_chicken), pivot_turn(-75,"r"))
-    await runloop.sleep_ms(pause) 
-    #runloop.run(motor.run_for_degrees(LEFT_ATTACH,-lift,speed_of_lava_chicken),motor.run_for_degrees(RIGHT_ATTACH,lift,speed_of_lava_chicken))
+    #back away from mushroom turn to stick
+    runloop.run(motor.run_for_degrees(LEFT_ATTACH,-(lift+stage),speed_of_lava_chicken),motor.run_for_degrees(RIGHT_ATTACH,(lift+stage),speed_of_lava_chicken), pivot_turn(-75,"r"))
+    await runloop.sleep_ms(pause)
+
+    #drive to stick
+    await drive_straight(3,400)
+    await runloop.sleep_ms(pause)
+
+    #raise stick
+    runloop.run(motor.run_for_degrees(LEFT_ATTACH,(lift2),speed_of_lava_chicken), motor.run_for_degrees(RIGHT_ATTACH,-(lift2),speed_of_lava_chicken), tank_turn(-15))
+    await runloop.sleep_ms(pause)
+
+    #return home
+    runloop.run( tank_turn(90), motor.run_for_degrees(LEFT_ATTACH,(lift2),speed_of_lava_chicken), motor.run_for_degrees(RIGHT_ATTACH,-(lift2), speed_of_lava_chicken))
+    await runloop.sleep_ms(pause)
+    await drive_straight(-26,1000)
 runloop.run(main())
-
-
-
